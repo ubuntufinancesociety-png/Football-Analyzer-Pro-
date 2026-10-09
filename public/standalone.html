@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Football Analyzer Pro - Independent Sports Analytics & Betslip Organizer</title>
+  <meta name="description" content="Independent football match analytics, screenshot betslip OCR scanner, custom leg builder, and slip organizer. NOT A BOOKMAKER.">
+  <meta name="theme-color" content="#0b1120">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-[#0b1120] text-slate-100 antialiased font-sans pb-24 selection:bg-emerald-500/30">
+
+  <!-- Top Disclaimer Header: We are NOT a bookmaker -->
+  <div class="bg-amber-500/10 border-b border-amber-500/20 px-3 py-1.5 text-center text-xs text-amber-300 font-semibold">
+    ℹ️ INDEPENDENT ANALYTICS TOOL • WE ARE NOT A BOOKMAKER • NO BETS ACCEPTED • 18+ GAMBLE RESPONSIBLY
+  </div>
+
+  <div class="max-w-4xl mx-auto px-4 py-4 space-y-4">
+    <!-- Header -->
+    <header class="flex items-center justify-between border-b border-slate-800 pb-3">
+      <div class="flex items-center gap-2.5">
+        <div class="h-10 w-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-slate-950 font-black flex items-center justify-center text-lg shadow-md shadow-emerald-500/20">
+          ⚽
+        </div>
+        <div>
+          <h1 class="text-base font-bold text-white leading-none">Football Analyzer Pro</h1>
+          <p class="text-[11px] text-slate-400 mt-0.5">Independent Slip Scanner & Match Intelligence</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <a href="/" class="rounded-lg bg-emerald-500 text-slate-950 font-bold px-3 py-1.5 text-xs hover:bg-emerald-400 transition-colors">
+          Open Full App
+        </a>
+        <a href="/api/download-zip" download="Football-Analyzer-Pro-Updated.zip" class="rounded-lg bg-slate-800 border border-slate-700 text-slate-200 font-semibold px-2.5 py-1.5 text-xs hover:bg-slate-700 transition-colors">
+          📦 Download Zip
+        </a>
+      </div>
+    </header>
+
+    <!-- Notice Card -->
+    <div class="rounded-2xl border border-slate-800 bg-[#0f172a] p-4 text-xs space-y-2">
+      <div class="font-bold text-slate-200 text-sm flex items-center gap-2">
+        <span>🛡️ Non-Gambling Independent Disclaimer</span>
+      </div>
+      <p class="text-slate-300 leading-relaxed">
+        Football Analyzer Pro is an independent analytical tool built to help sports enthusiasts organize match selections, compare accumulator odds, and scan screenshots from any bookmaker (including Hollywoodbets, Betway, Supabets, and Betexchange).
+        <strong>We are not a bookmaker, do not process financial transactions, and do not place bets.</strong>
+      </p>
+    </div>
+
+    <!-- Quick Features Overview -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div class="rounded-xl border border-slate-800 bg-slate-900/80 p-3.5 space-y-1">
+        <div class="text-emerald-400 font-bold text-xs">📷 Universal OCR Scanner</div>
+        <p class="text-slate-400 text-[11px]">Auto-detects Hollywoodbets, Betway, Supabets, and Betexchange layouts with South African fractional odds normalization.</p>
+      </div>
+      <div class="rounded-xl border border-slate-800 bg-slate-900/80 p-3.5 space-y-1">
+        <div class="text-amber-400 font-bold text-xs">➕ Custom Leg Builder</div>
+        <p class="text-slate-400 text-[11px]">Assemble custom selections (1X2, Over/Under, BTTS, Double Chance) and add them straight to your accumulator.</p>
+      </div>
+      <div class="rounded-xl border border-slate-800 bg-slate-900/80 p-3.5 space-y-1">
+        <div class="text-teal-400 font-bold text-xs">📤 Bookmaker Transfer & Share</div>
+        <p class="text-slate-400 text-[11px]">Copy search terms for licensed bookmakers or share your slip with friends via WhatsApp with one tap.</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

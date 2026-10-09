@@ -1,0 +1,6 @@
+{
+  "name": "Football Betslip OCR & Analyzer Pro",
+  "description": "Next-gen sports betting OCR scanner supporting all bookmakers, multi-layout slip extraction, custom leg builder, daily upcoming matches, and bookmaker slip transfer.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
