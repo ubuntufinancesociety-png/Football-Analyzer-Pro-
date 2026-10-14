@@ -25,9 +25,13 @@ export const Header: React.FC<HeaderProps> = ({
       {/* Top micro bar for status & currency */}
       <div className="border-b border-slate-800/80 bg-slate-950/70 px-3 py-1.5 text-xs text-slate-400">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 text-[11px] truncate">
+          <div className="flex items-center gap-2 text-[11px] truncate">
             <span className="flex h-2 w-2 shrink-0 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="font-semibold text-slate-300">Hollywoodbets & Universal OCR</span>
+            <span className="font-bold text-emerald-400">Gemini Sports AI</span>
+            <span className="text-slate-600">•</span>
+            <span className="text-amber-400 font-semibold bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.2 rounded text-[10px]">
+              ⚠️ Analytical Tool (Not a Bookmaker)
+            </span>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
@@ -65,12 +69,12 @@ export const Header: React.FC<HeaderProps> = ({
               <h1 className="text-sm sm:text-base font-bold tracking-tight text-white leading-none truncate">
                 Football Analyzer Pro
               </h1>
-              <span className="rounded bg-emerald-500/10 border border-emerald-500/30 px-1.5 py-0.2 text-[9px] font-bold text-emerald-400 uppercase shrink-0">
-                AI OCR
+              <span className="rounded bg-emerald-500/15 border border-emerald-500/40 px-1.5 py-0.2 text-[9px] font-bold text-emerald-400 uppercase shrink-0">
+                AI Bankers
               </span>
             </div>
             <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mt-0.5">
-              <span>Bookmaker:</span>
+              <span>Export Slip Format:</span>
               <span className="font-semibold text-amber-300 bg-amber-500/10 px-1.5 py-0.2 rounded border border-amber-500/20 text-[10px] truncate max-w-[120px] sm:max-w-none">
                 {detectedBookmaker || 'Hollywoodbets'}
               </span>
@@ -81,51 +85,30 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Tab buttons (Desktop only, mobile uses fixed bottom navigation bar) */}
         <nav className="hidden sm:flex items-center gap-1.5">
           <button
-            onClick={() => setActiveTab('ocr')}
-            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
-              activeTab === 'ocr'
-                ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/25'
-                : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
-            }`}
-          >
-            <Camera className="h-4 w-4" />
-            <span>OCR Scanner</span>
-          </button>
-
-          <button
             onClick={() => setActiveTab('upcoming')}
             className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
               activeTab === 'upcoming'
-                ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/25'
+                ? 'bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 shadow-md shadow-emerald-500/25 font-bold'
                 : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
             }`}
           >
-            <Calendar className="h-4 w-4" />
-            <span>Upcoming Matches</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('builder')}
-            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
-              activeTab === 'builder'
-                ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/25'
-                : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
-            }`}
-          >
-            <PlusCircle className="h-4 w-4" />
-            <span>Create Leg</span>
+            <Sparkles className="h-4 w-4 text-emerald-400 group-hover:text-white" />
+            <span>🔥 AI Match Bankers</span>
+            <span className="rounded bg-emerald-500/20 text-emerald-300 px-1 py-0.2 text-[9px] font-extrabold uppercase">
+              15 Live
+            </span>
           </button>
 
           <button
             onClick={() => setActiveTab('slip')}
             className={`relative inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
               activeTab === 'slip'
-                ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/25'
+                ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/25 font-bold'
                 : 'bg-slate-800 text-slate-100 hover:bg-slate-700/80'
             }`}
           >
             <Receipt className="h-4 w-4" />
-            <span>Betslip</span>
+            <span>Betslip / Acca</span>
             {slipCount > 0 && (
               <span
                 className={`ml-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold ${
@@ -135,6 +118,30 @@ export const Header: React.FC<HeaderProps> = ({
                 {slipCount}
               </span>
             )}
+          </button>
+
+          <button
+            onClick={() => setActiveTab('builder')}
+            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
+              activeTab === 'builder'
+                ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/25 font-bold'
+                : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+            }`}
+          >
+            <PlusCircle className="h-4 w-4" />
+            <span>Create Leg</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('ocr')}
+            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
+              activeTab === 'ocr'
+                ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/25 font-bold'
+                : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+            }`}
+          >
+            <Camera className="h-4 w-4" />
+            <span>OCR Scanner</span>
           </button>
         </nav>
 

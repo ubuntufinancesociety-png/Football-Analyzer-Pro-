@@ -8,7 +8,7 @@ export const BOOKMAKERS: BookmakerTransferTarget[] = [
     primaryColor: '#6B21A8',
     accentColor: '#FACC15',
     region: 'South Africa & UK',
-    instructions: 'Copy your generated slip legs or booking code, open Hollywoodbets, and search matches by team names.',
+    instructions: 'Hollywoodbets booking codes use numbers only (e.g. 7482915). Enter this 7-digit code into the "Load Ticket" / "Booking Code" box on Hollywoodbets.',
   },
   {
     id: 'betway',

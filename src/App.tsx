@@ -56,13 +56,29 @@ const INITIAL_DEMO_LEGS: MatchLeg[] = [
 ];
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'ocr' | 'upcoming' | 'builder' | 'slip'>('ocr');
+  const [activeTab, setActiveTab] = useState<'ocr' | 'upcoming' | 'builder' | 'slip'>('upcoming');
   const [legs, setLegs] = useState<MatchLeg[]>(() => {
     try {
       const saved = localStorage.getItem('fap_betslip_v2');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map((leg: any, idx: number) => {
+            const parsedOdds = Number(leg?.odds);
+            const validOdds = !isNaN(parsedOdds) && parsedOdds > 0 ? Number(parsedOdds.toFixed(2)) : 1.50;
+            return {
+              ...leg,
+              id: leg?.id || `leg_${Date.now()}_${idx}`,
+              matchTitle: leg?.matchTitle || `${leg?.homeTeam || 'Home'} vs ${leg?.awayTeam || 'Away'}`,
+              selection: leg?.selection || 'Pick',
+              league: leg?.league || 'League',
+              market: leg?.market || '1X2',
+              odds: validOdds,
+              active: leg?.active !== undefined ? Boolean(leg.active) : true,
+              source: leg?.source || 'upcoming',
+            };
+          });
+        }
       }
     } catch (e) {
       console.warn('Failed to load betslip from localStorage:', e);
@@ -117,22 +133,30 @@ export default function App() {
   };
 
   const handleAddLeg = (newLeg: Omit<MatchLeg, 'id' | 'active'>) => {
+    const rawOdds = Number(newLeg.odds);
+    const validOdds = !isNaN(rawOdds) && rawOdds > 0 ? Number(rawOdds.toFixed(2)) : 1.50;
     const leg: MatchLeg = {
       ...newLeg,
+      odds: validOdds,
       id: `leg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       active: true,
     };
 
     setLegs((prev) => [leg, ...prev]);
-    showToast(`Added: ${leg.selection} (@${leg.odds.toFixed(2)}) to Betslip!`);
+    showToast(`Added: ${leg.selection} (@${validOdds.toFixed(2)}) to Betslip!`);
   };
 
   const handleAddMultipleLegs = (newLegs: Array<Omit<MatchLeg, 'id' | 'active'>>) => {
-    const formattedLegs: MatchLeg[] = newLegs.map((nl, idx) => ({
-      ...nl,
-      id: `leg_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 7)}`,
-      active: true,
-    }));
+    const formattedLegs: MatchLeg[] = newLegs.map((nl, idx) => {
+      const rawOdds = Number(nl.odds);
+      const validOdds = !isNaN(rawOdds) && rawOdds > 0 ? Number(rawOdds.toFixed(2)) : 1.50;
+      return {
+        ...nl,
+        odds: validOdds,
+        id: `leg_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 7)}`,
+        active: true,
+      };
+    });
 
     setLegs((prev) => [...formattedLegs, ...prev]);
     showToast(`Added ${formattedLegs.length} legs to your Betslip!`);
@@ -143,6 +167,19 @@ export default function App() {
     setLegs((prev) =>
       prev.map((l) => (l.id === id ? { ...l, active: !l.active } : l))
     );
+  };
+
+  const handleSetLegsActive = (activeIds: string[]) => {
+    setLegs((prev) =>
+      prev.map((l) => ({
+        ...l,
+        active: activeIds.includes(l.id),
+      }))
+    );
+  };
+
+  const handleSelectAllLegs = (shouldSelect: boolean) => {
+    setLegs((prev) => prev.map((l) => ({ ...l, active: shouldSelect })));
   };
 
   const handleRemoveLeg = (id: string) => {
@@ -180,14 +217,18 @@ export default function App() {
             detectedBookmaker={detectedBookmaker}
             setDetectedBookmaker={setDetectedBookmaker}
             currency={currency}
+            stake={stake}
+            onGoToSlip={() => setActiveTab('slip')}
           />
         )}
 
         {activeTab === 'upcoming' && (
           <UpcomingMatches
             onAddLeg={handleAddLeg}
+            onAddMultipleLegs={handleAddMultipleLegs}
             activeLegs={legs}
             onGoToSlip={() => setActiveTab('slip')}
+            currency={currency}
           />
         )}
 
@@ -204,6 +245,9 @@ export default function App() {
           <BetslipView
             legs={legs}
             onToggleLeg={handleToggleLeg}
+            onSetLegsActive={handleSetLegsActive}
+            onSelectAllLegs={handleSelectAllLegs}
+            onAddMultipleLegs={handleAddMultipleLegs}
             onRemoveLeg={handleRemoveLeg}
             onClearSlip={handleClearSlip}
             stake={stake}
@@ -226,39 +270,19 @@ export default function App() {
       {/* Mobile Fixed Bottom Navigation Bar */}
       <div className="fixed bottom-0 left-0 right-0 z-40 flex sm:hidden border-t border-slate-800 bg-[#0d1527]/95 px-2 py-2 backdrop-blur-lg justify-around">
         <button
-          onClick={() => setActiveTab('ocr')}
-          className={`flex flex-col items-center gap-1 rounded-xl px-3 py-1.5 text-[11px] font-semibold transition-colors ${
-            activeTab === 'ocr' ? 'text-emerald-400' : 'text-slate-400'
-          }`}
-        >
-          <Camera className="h-5 w-5" />
-          <span>Scan OCR</span>
-        </button>
-
-        <button
           onClick={() => setActiveTab('upcoming')}
           className={`flex flex-col items-center gap-1 rounded-xl px-3 py-1.5 text-[11px] font-semibold transition-colors ${
-            activeTab === 'upcoming' ? 'text-emerald-400' : 'text-slate-400'
+            activeTab === 'upcoming' ? 'text-emerald-400 font-bold' : 'text-slate-400'
           }`}
         >
-          <Calendar className="h-5 w-5" />
-          <span>Matches</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('builder')}
-          className={`flex flex-col items-center gap-1 rounded-xl px-3 py-1.5 text-[11px] font-semibold transition-colors ${
-            activeTab === 'builder' ? 'text-emerald-400' : 'text-slate-400'
-          }`}
-        >
-          <PlusCircle className="h-5 w-5" />
-          <span>+ Leg</span>
+          <Sparkles className="h-5 w-5" />
+          <span>AI Bankers</span>
         </button>
 
         <button
           onClick={() => setActiveTab('slip')}
           className={`relative flex flex-col items-center gap-1 rounded-xl px-3 py-1.5 text-[11px] font-semibold transition-colors ${
-            activeTab === 'slip' ? 'text-emerald-400' : 'text-slate-400'
+            activeTab === 'slip' ? 'text-emerald-400 font-bold' : 'text-slate-400'
           }`}
         >
           <Receipt className="h-5 w-5" />
@@ -269,15 +293,44 @@ export default function App() {
             </span>
           )}
         </button>
+
+        <button
+          onClick={() => setActiveTab('builder')}
+          className={`flex flex-col items-center gap-1 rounded-xl px-3 py-1.5 text-[11px] font-semibold transition-colors ${
+            activeTab === 'builder' ? 'text-emerald-400 font-bold' : 'text-slate-400'
+          }`}
+        >
+          <PlusCircle className="h-5 w-5" />
+          <span>+ Leg</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('ocr')}
+          className={`flex flex-col items-center gap-1 rounded-xl px-3 py-1.5 text-[11px] font-semibold transition-colors ${
+            activeTab === 'ocr' ? 'text-emerald-400 font-bold' : 'text-slate-400'
+          }`}
+        >
+          <Camera className="h-5 w-5" />
+          <span>Scan OCR</span>
+        </button>
       </div>
 
-      {/* Footer */}
-      <footer className="mt-auto border-t border-slate-800/80 bg-slate-950/60 py-6 text-center text-xs text-slate-400">
-        <div className="mx-auto max-w-4xl px-4 space-y-2">
-          <p className="font-semibold text-slate-400">
-            Football Analyzer Pro • Universal Bookmaker OCR & Slip Intelligence
+      {/* Footer & Independent Platform Disclaimer */}
+      <footer className="mt-auto border-t border-slate-800/80 bg-slate-950/80 py-6 text-center text-xs text-slate-400">
+        <div className="mx-auto max-w-4xl px-4 space-y-2.5">
+          <div className="flex flex-wrap items-center justify-center gap-2 text-[11px]">
+            <span className="font-bold text-slate-300">Football Analyzer Pro</span>
+            <span className="text-slate-600">•</span>
+            <span className="text-emerald-400 font-medium">Gemini AI Sports Intelligence</span>
+            <span className="text-slate-600">•</span>
+            <span className="text-amber-400 font-semibold bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-full">
+              ⚠️ Independent Analytics Platform (Not a Bookmaker)
+            </span>
+          </div>
+          <p className="text-slate-400 text-[11px] leading-relaxed max-w-2xl mx-auto">
+            This application is an educational & statistical analysis tool. We are NOT a bookmaker, gambling operator, or sports betting service. We do not accept bets, stake money, or execute wagers. All banker conviction scores and odds are algorithmic projections.
           </p>
-          <p className="text-slate-400 text-[11px]">
+          <p className="text-slate-400 text-[10px]">
             18+ Only. Gamble responsibly. South African Responsible Gambling Helpline: 0800 006 008. UK: 0808 8020 133.
           </p>
         </div>

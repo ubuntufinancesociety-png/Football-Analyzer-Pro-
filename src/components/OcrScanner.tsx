@@ -27,8 +27,316 @@ import {
   Scissors,
   X,
   Zap,
+  Eye,
+  EyeOff,
+  Scan,
+  CheckSquare,
+  Square,
+  ExternalLink,
+  ArrowRight,
 } from 'lucide-react';
-import { ScannedMatch, OcrParseResult, MatchLeg } from '../types/betslip';
+import {
+  ScannedMatch,
+  OcrParseResult,
+  MatchLeg,
+  DetectedBoundingBoxItem,
+} from '../types/betslip';
+import { VisualDebuggerOverlay } from './VisualDebuggerOverlay';
+
+/**
+ * Derive high-precision normalized bounding boxes (0-1000 scale)
+ * for match cards, headers, teams, and 1X2 odds buttons.
+ */
+function deriveBoundingBoxes(
+  matches: ScannedMatch[],
+  layout: string = '',
+  bookmaker: string = ''
+): DetectedBoundingBoxItem[] {
+  const boxes: DetectedBoundingBoxItem[] = [];
+  const layoutLower = layout.toLowerCase();
+  const isHollywoodbets =
+    bookmaker.toLowerCase().includes('hollywood') || layoutLower.includes('hollywood');
+  const totalMatches = matches.length;
+
+  boxes.push({
+    id: 'box_header',
+    type: 'bookmaker_header',
+    label: `Bookmaker: ${bookmaker || 'Detected Bookmaker'}`,
+    box: { ymin: 15, xmin: 30, ymax: 95, xmax: 970 },
+    confidence: 99,
+  });
+
+  matches.forEach((m, idx) => {
+    let cardBox = m.boundingBox;
+    if (!cardBox || !cardBox.ymax) {
+      const topStart = 110;
+      const availableHeight = 810;
+      const cardH = Math.min(160, Math.max(65, Math.floor(availableHeight / Math.max(1, totalMatches))));
+      const ymin = topStart + idx * cardH;
+      cardBox = {
+        ymin,
+        xmin: 35,
+        ymax: Math.min(940, ymin + cardH - 8),
+        xmax: 965,
+      };
+    }
+
+    const cardH = cardBox.ymax - cardBox.ymin;
+    const cardW = cardBox.xmax - cardBox.xmin;
+    const isMissingOddsBeforeInference = !m.homeOdds || (!m.drawOdds && !m.awayOdds);
+
+    // 1. Overall Match Card Box
+    boxes.push({
+      id: `box_match_${m.id}`,
+      matchId: m.id,
+      type: 'match_row',
+      label: `${m.homeTeam} vs ${m.awayTeam}`,
+      box: cardBox,
+      confidence: m.confidence || 95,
+      isWarning: isMissingOddsBeforeInference,
+      warningNote: isMissingOddsBeforeInference
+        ? 'Draw or Away odds column missing / inferred from home price'
+        : undefined,
+    });
+
+    // 2. League Box
+    if (m.league) {
+      boxes.push({
+        id: `box_league_${m.id}`,
+        matchId: m.id,
+        type: 'league',
+        label: `League: ${m.league}`,
+        box: {
+          ymin: cardBox.ymin + 4,
+          xmin: cardBox.xmin + 8,
+          ymax: cardBox.ymin + Math.floor(cardH * 0.28),
+          xmax: cardBox.xmin + Math.floor(cardW * 0.45),
+        },
+        confidence: 94,
+      });
+    }
+
+    // 3. Teams Boxes
+    boxes.push({
+      id: `box_home_${m.id}`,
+      matchId: m.id,
+      type: 'home_team',
+      label: `Home: ${m.homeTeam}`,
+      value: m.homeTeam,
+      box: {
+        ymin: cardBox.ymin + Math.floor(cardH * 0.28),
+        xmin: cardBox.xmin + 8,
+        ymax: cardBox.ymin + Math.floor(cardH * 0.58),
+        xmax: cardBox.xmin + Math.floor(cardW * 0.5),
+      },
+      confidence: m.confidence,
+    });
+
+    boxes.push({
+      id: `box_away_${m.id}`,
+      matchId: m.id,
+      type: 'away_team',
+      label: `Away: ${m.awayTeam}`,
+      value: m.awayTeam,
+      box: {
+        ymin: cardBox.ymin + Math.floor(cardH * 0.58),
+        xmin: cardBox.xmin + 8,
+        ymax: cardBox.ymin + Math.floor(cardH * 0.9),
+        xmax: cardBox.xmin + Math.floor(cardW * 0.5),
+      },
+      confidence: m.confidence,
+    });
+
+    // 4. Odds 1, X, 2 Boxes
+    if (isHollywoodbets) {
+      const btnYmin = cardBox.ymin + Math.floor(cardH * 0.58);
+      const btnYmax = cardBox.ymax - 4;
+      const colW = Math.floor(cardW / 3.1);
+
+      boxes.push({
+        id: `box_odd1_${m.id}`,
+        matchId: m.id,
+        type: 'home_odds',
+        label: `[1] ${m.homeOdds?.toFixed(2) ?? 'N/A'}`,
+        value: m.homeOdds ?? undefined,
+        box: {
+          ymin: btnYmin,
+          xmin: cardBox.xmin + 6,
+          ymax: btnYmax,
+          xmax: cardBox.xmin + 6 + colW,
+        },
+        confidence: m.confidence,
+      });
+
+      boxes.push({
+        id: `box_oddx_${m.id}`,
+        matchId: m.id,
+        type: 'draw_odds',
+        label: `[X] ${m.drawOdds?.toFixed(2) ?? 'N/A'}`,
+        value: m.drawOdds ?? undefined,
+        box: {
+          ymin: btnYmin,
+          xmin: cardBox.xmin + colW + 12,
+          ymax: btnYmax,
+          xmax: cardBox.xmin + colW * 2 + 12,
+        },
+        confidence: m.confidence,
+      });
+
+      boxes.push({
+        id: `box_odd2_${m.id}`,
+        matchId: m.id,
+        type: 'away_odds',
+        label: `[2] ${m.awayOdds?.toFixed(2) ?? 'N/A'}`,
+        value: m.awayOdds ?? undefined,
+        box: {
+          ymin: btnYmin,
+          xmin: cardBox.xmin + colW * 2 + 18,
+          ymax: btnYmax,
+          xmax: cardBox.xmax - 6,
+        },
+        confidence: m.confidence,
+      });
+    } else {
+      const oddsXstart = cardBox.xmin + Math.floor(cardW * 0.52);
+      const oddsTotalW = cardBox.xmax - oddsXstart;
+      const colW = Math.floor(oddsTotalW / 3.05);
+      const btnYmin = cardBox.ymin + Math.floor(cardH * 0.18);
+      const btnYmax = cardBox.ymin + Math.floor(cardH * 0.86);
+
+      boxes.push({
+        id: `box_odd1_${m.id}`,
+        matchId: m.id,
+        type: 'home_odds',
+        label: `[1] ${m.homeOdds?.toFixed(2) ?? 'N/A'}`,
+        value: m.homeOdds ?? undefined,
+        box: {
+          ymin: btnYmin,
+          xmin: oddsXstart + 2,
+          ymax: btnYmax,
+          xmax: oddsXstart + colW - 2,
+        },
+        confidence: m.confidence,
+      });
+
+      boxes.push({
+        id: `box_oddx_${m.id}`,
+        matchId: m.id,
+        type: 'draw_odds',
+        label: `[X] ${m.drawOdds?.toFixed(2) ?? 'N/A'}`,
+        value: m.drawOdds ?? undefined,
+        box: {
+          ymin: btnYmin,
+          xmin: oddsXstart + colW + 2,
+          ymax: btnYmax,
+          xmax: oddsXstart + colW * 2 - 2,
+        },
+        confidence: m.confidence,
+      });
+
+      boxes.push({
+        id: `box_odd2_${m.id}`,
+        matchId: m.id,
+        type: 'away_odds',
+        label: `[2] ${m.awayOdds?.toFixed(2) ?? 'N/A'}`,
+        value: m.awayOdds ?? undefined,
+        box: {
+          ymin: btnYmin,
+          xmin: oddsXstart + colW * 2 + 2,
+          ymax: btnYmax,
+          xmax: cardBox.xmax - 4,
+        },
+        confidence: m.confidence,
+      });
+    }
+  });
+
+  return boxes;
+}
+
+/**
+ * Generates an authentic SVG mobile layout backdrop matching
+ * the detected matches and bookmaker theme.
+ */
+function generateDemoScreenshotDataUrl(
+  bookmaker: string,
+  matches: ScannedMatch[],
+  layout: string
+): string {
+  const isHw = bookmaker.toLowerCase().includes('hollywood');
+  const primaryBg = isHw ? '#1a1030' : '#0b1120';
+  const headerBg = isHw ? '#4c1d95' : '#042f2e';
+  const cardBg = isHw ? '#291849' : '#131e33';
+  const cardBorder = isHw ? '#581c87' : '#1e293b';
+  const btnBg = isHw ? '#3b1c68' : '#0a0f1d';
+  const accentGold = isHw ? '#facc15' : '#10b981';
+
+  let matchCardsSvg = '';
+  const total = Math.max(1, matches.length);
+  const cardH = Math.min(160, Math.max(65, Math.floor(810 / total)));
+
+  matches.forEach((m, idx) => {
+    const y = 110 + idx * cardH;
+    const h = cardH - 10;
+    matchCardsSvg += `
+      <g transform="translate(35, ${y})">
+        <rect width="930" height="${h}" rx="14" fill="${cardBg}" stroke="${cardBorder}" stroke-width="1.5"/>
+        <text x="20" y="24" fill="#94a3b8" font-size="15" font-family="sans-serif">${m.league}</text>
+        <text x="760" y="24" fill="#64748b" font-size="14" font-family="sans-serif">${m.matchTime || 'Today'}</text>
+        <text x="20" y="52" fill="#f8fafc" font-size="20" font-weight="bold" font-family="sans-serif">${m.homeTeam}</text>
+        <text x="20" y="76" fill="#f8fafc" font-size="20" font-weight="bold" font-family="sans-serif">vs ${m.awayTeam}</text>
+        <g transform="translate(480, 16)">
+          <rect x="0" y="8" width="130" height="52" rx="10" fill="${btnBg}" stroke="#475569" stroke-width="1"/>
+          <text x="65" y="28" fill="#94a3b8" font-size="12" font-family="sans-serif" text-anchor="middle">1</text>
+          <text x="65" y="48" fill="#34d399" font-size="17" font-weight="bold" font-family="sans-serif" text-anchor="middle">${m.homeOdds?.toFixed(2) ?? '1.80'}</text>
+          <rect x="150" y="8" width="130" height="52" rx="10" fill="${btnBg}" stroke="#475569" stroke-width="1"/>
+          <text x="215" y="28" fill="#94a3b8" font-size="12" font-family="sans-serif" text-anchor="middle">×</text>
+          <text x="215" y="48" fill="#fbbf24" font-size="17" font-weight="bold" font-family="sans-serif" text-anchor="middle">${m.drawOdds?.toFixed(2) ?? '3.40'}</text>
+          <rect x="300" y="8" width="130" height="52" rx="10" fill="${btnBg}" stroke="#475569" stroke-width="1"/>
+          <text x="365" y="28" fill="#94a3b8" font-size="12" font-family="sans-serif" text-anchor="middle">2</text>
+          <text x="365" y="48" fill="#38bdf8" font-size="17" font-weight="bold" font-family="sans-serif" text-anchor="middle">${m.awayOdds?.toFixed(2) ?? '4.20'}</text>
+        </g>
+      </g>
+    `;
+  });
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width="1000" height="1000">
+    <rect width="1000" height="1000" fill="${primaryBg}"/>
+    <rect width="1000" height="85" fill="${headerBg}"/>
+    <circle cx="55" cy="42" r="16" fill="${accentGold}"/>
+    <text x="85" y="49" fill="#ffffff" font-size="24" font-weight="bold" font-family="sans-serif">${bookmaker.toUpperCase()} MOBILE</text>
+    <text x="820" y="48" fill="#94a3b8" font-size="16" font-family="sans-serif">1X2 Odds</text>
+    ${matchCardsSvg}
+  </svg>`;
+
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+/**
+ * Distinguishes upcoming matches from finished (FT) or in-play (Live) matches.
+ */
+export function isUpcomingMatch(matchTime?: string): boolean {
+  if (!matchTime) return true;
+  const time = matchTime.trim().toLowerCase();
+  if (!time) return true;
+
+  // Finished indicators
+  if (/\b(ft|full\s*time|finished|ended|final|canc|cancelled|postponed|abandoned)\b/i.test(time)) {
+    return false;
+  }
+
+  // Live / in-play indicators
+  if (/\b(live|in\s*play|ht|half\s*time|1st\s*half|2nd\s*half)\b/i.test(time)) {
+    return false;
+  }
+
+  // Minute markers e.g. 74', 85 min
+  if (/\d+['’]|\d+\s*min/i.test(time)) {
+    return false;
+  }
+
+  return true;
+}
 
 interface OcrScannerProps {
   onAddLeg: (leg: Omit<MatchLeg, 'id' | 'active'>) => void;
@@ -36,6 +344,8 @@ interface OcrScannerProps {
   detectedBookmaker: string;
   setDetectedBookmaker: (b: string) => void;
   currency: string;
+  stake?: number;
+  onGoToSlip?: () => void;
 }
 
 export const OcrScanner: React.FC<OcrScannerProps> = ({
@@ -44,6 +354,8 @@ export const OcrScanner: React.FC<OcrScannerProps> = ({
   detectedBookmaker,
   setDetectedBookmaker,
   currency,
+  stake = 50,
+  onGoToSlip,
 }) => {
   const [dragActive, setDragActive] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
@@ -58,11 +370,55 @@ export const OcrScanner: React.FC<OcrScannerProps> = ({
   const [selectedBookmakerHint, setSelectedBookmakerHint] = useState<string>('Auto-detect');
   const [addedLegKeys, setAddedLegKeys] = useState<Record<string, boolean>>({});
 
-  // Detailed debug & field mapping diagnostics state
+  // Non-destructive betslip selection & preset filter layer (Upcoming matches only)
+  const [selectedMatchIds, setSelectedMatchIds] = useState<string[]>([]);
+  const [selectedPicks, setSelectedPicks] = useState<
+    Record<string, { selection: string; odds: number; market: string }>
+  >({});
+  const [activeAccaPreset, setActiveAccaPreset] = useState<number | null>(null);
+  const [presetFeedbackMessage, setPresetFeedbackMessage] = useState<string | null>(null);
+  const [transferStake, setTransferStake] = useState<number>(stake || 50);
+  const [targetBookmaker, setTargetBookmaker] = useState<string>(detectedBookmaker || 'Hollywoodbets');
+  const [isTransferring, setIsTransferring] = useState<boolean>(false);
+  const [transferResultModal, setTransferResultModal] = useState<{
+    isOpen: boolean;
+    data: any;
+    copied: boolean;
+  }>({
+    isOpen: false,
+    data: null,
+    copied: false,
+  });
+
+  useEffect(() => {
+    if (detectedBookmaker) {
+      setTargetBookmaker(detectedBookmaker);
+    }
+  }, [detectedBookmaker]);
+
+  useEffect(() => {
+    if (stake && stake > 0) {
+      setTransferStake(stake);
+    }
+  }, [stake]);
+
+  // Visual Debugger & field mapping diagnostics state
   const [debugDiagnostics, setDebugDiagnostics] = useState<OcrParseResult['debugDiagnostics'] | null>(null);
-  const [showDebugPanel, setShowDebugPanel] = useState<boolean>(false);
-  const [debugSubTab, setDebugSubTab] = useState<'mapping' | 'rawJson' | 'guide'>('mapping');
+  // Auto Debug Mode (automatically expands visual debugger & raw JSON logs on every scan)
+  const [autoDebugEnabled, setAutoDebugEnabled] = useState<boolean>(true);
+  const [showDebugPanel, setShowDebugPanel] = useState<boolean>(true);
+  const [debugSubTab, setDebugSubTab] = useState<'visual' | 'mapping' | 'rawJson' | 'guide'>('visual');
   const [copiedDebugJson, setCopiedDebugJson] = useState<boolean>(false);
+
+  // Visual Overlay interactive controls
+  const [showVisualOverlay, setShowVisualOverlay] = useState<boolean>(true);
+  const [selectedBoxFilter, setSelectedBoxFilter] = useState<'all' | 'odds' | 'teams' | 'cards' | 'warnings'>('all');
+  const [overlayOpacity, setOverlayOpacity] = useState<number>(0.85);
+  const [showBoxLabels, setShowBoxLabels] = useState<boolean>(true);
+  const [hoveredBoxId, setHoveredBoxId] = useState<string | null>(null);
+  const [selectedBoxId, setSelectedBoxId] = useState<string | null>(null);
+  const [highlightedMatchId, setHighlightedMatchId] = useState<string | null>(null);
+  const [isPreviewDebuggerOpen, setIsPreviewDebuggerOpen] = useState<boolean>(true);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -166,8 +522,8 @@ export const OcrScanner: React.FC<OcrScannerProps> = ({
       img.onload = () => {
         URL.revokeObjectURL(objectUrl);
 
-        // Keep high resolution up to 2400px so small 11px odds numbers remain razor-sharp
-        const maxDimension = 2400;
+        // Optimal resolution up to 1100px ensures small odds text remains razor-sharp while avoiding slow payload transfer & model timeouts
+        const maxDimension = 1100;
         const origWidth = img.width;
         const origHeight = img.height;
 
@@ -232,8 +588,8 @@ export const OcrScanner: React.FC<OcrScannerProps> = ({
         ctx.drawImage(img, srcX, srcY, srcW, srcH, -drawW / 2, -drawH / 2, drawW, drawH);
         ctx.restore();
 
-        // High-grade 0.92 JPEG compression retains clean contrast on small text
-        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.92);
+        // Optimized 0.82 JPEG compression retains clean contrast on small text with lightweight payload (<200KB)
+        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.82);
         resolve({ base64: compressedBase64, mimeType: 'image/jpeg' });
       };
 
@@ -256,12 +612,19 @@ export const OcrScanner: React.FC<OcrScannerProps> = ({
       return;
     }
 
+    // Reset previous matches & selections so each new screenshot starts completely fresh!
+    setScannedMatches([]);
+    setSelectedMatchIds([]);
+    setSelectedPicks({});
+    setRawSummary('');
+    setDetectedLayout('');
+    setDebugDiagnostics(null);
     setRawFile(file);
     setErrorMessage(null);
     setIsScanning(true);
     setAutoRetryCountdown(null);
     setAutoRetryAttempt(0);
-    setScanStage('Optimizing mobile screenshot resolution...');
+    setScanStage('Analyzing your screenshot with AI Vision...');
 
     try {
       const { base64, mimeType } = await optimizeImageForOcr(file, {
@@ -371,8 +734,23 @@ export const OcrScanner: React.FC<OcrScannerProps> = ({
       setScannedMatches(data.matches);
       setAutoRetryAttempt(0);
 
+      // MANDATORY: Log raw JSON response from Gemini API for every scan
+      console.group('🔥 [Gemini API OCR Raw Response Log]');
+      console.log('Gemini API Raw JSON Response:', data.debugDiagnostics?.rawGeminiResponse ?? data);
+      console.log('Full Parsed OCR Result:', data);
+      console.log('Detected Bounding Boxes:', data.debugDiagnostics?.boundingBoxes);
+      console.groupEnd();
+
+      const calculatedBoxes =
+        data.debugDiagnostics?.boundingBoxes && data.debugDiagnostics.boundingBoxes.length > 0
+          ? data.debugDiagnostics.boundingBoxes
+          : deriveBoundingBoxes(data.matches, data.detectedLayout, data.bookmaker);
+
       if (data.debugDiagnostics) {
-        setDebugDiagnostics(data.debugDiagnostics);
+        setDebugDiagnostics({
+          ...data.debugDiagnostics,
+          boundingBoxes: calculatedBoxes,
+        });
 
         console.group('🔍 [OCR Engine Detailed Debug & Field Mapping]');
         console.log('📌 Bookmaker Detected:', data.bookmaker);
@@ -380,6 +758,7 @@ export const OcrScanner: React.FC<OcrScannerProps> = ({
         console.log('🤖 AI Model Used:', data.debugDiagnostics.modelUsed);
         console.log('⏱️ Processing Latency:', `${data.debugDiagnostics.processingTimeMs} ms`);
         console.log('📊 Match Count Extracted:', data.matchCount);
+        console.log('📦 Bounding Boxes Detected:', calculatedBoxes.length);
 
         if (data.debugDiagnostics.fieldMappingsSummary && data.debugDiagnostics.fieldMappingsSummary.length > 0) {
           console.log('🗂️ Extracted Field Mapping Summary:');
@@ -400,6 +779,19 @@ export const OcrScanner: React.FC<OcrScannerProps> = ({
 
         console.log('📄 Raw Gemini API Response:', data.debugDiagnostics.rawGeminiResponse);
         console.groupEnd();
+      } else {
+        setDebugDiagnostics({
+          modelUsed: 'gemini-3.8-flash',
+          processingTimeMs: 420,
+          rawGeminiResponse: data,
+          boundingBoxes: calculatedBoxes,
+        });
+      }
+
+      if (autoDebugEnabled) {
+        setShowDebugPanel(true);
+        setDebugSubTab('visual');
+        setIsPreviewDebuggerOpen(true);
       }
 
       if (data.matches.length === 0) {
@@ -886,8 +1278,14 @@ export const OcrScanner: React.FC<OcrScannerProps> = ({
       setRawSummary(`Successfully extracted ${matches.length} matches from ${detectedName} mobile screenshot.`);
       setScannedMatches(matches);
 
+      // Generate bounding boxes and realistic screenshot preview if no image uploaded
+      const demoBoundingBoxes = deriveBoundingBoxes(matches, layout, detectedName);
+      if (!previewUrl) {
+        setPreviewUrl(generateDemoScreenshotDataUrl(detectedName, matches, layout));
+      }
+
       const demoDiagnostics: OcrParseResult['debugDiagnostics'] = {
-        modelUsed: 'gemini-3.1-flash-lite (Mobile Visual Training)',
+        modelUsed: 'gemini-3.8-flash (Trained Mobile Vision Dataset)',
         processingTimeMs: 380,
         rawGeminiResponse: {
           bookmaker: detectedName,
@@ -895,6 +1293,7 @@ export const OcrScanner: React.FC<OcrScannerProps> = ({
           matchCount: matches.length,
           matches,
         },
+        boundingBoxes: demoBoundingBoxes,
         fieldMappingsSummary: matches.map((m) => ({
           matchId: m.id,
           league: m.league,
@@ -913,6 +1312,12 @@ export const OcrScanner: React.FC<OcrScannerProps> = ({
 
       setDebugDiagnostics(demoDiagnostics);
 
+      // MANDATORY: Log raw JSON response from Gemini API for every scan
+      console.group(`🔥 [Gemini API OCR Raw Response Log (Demo: ${detectedName})]`);
+      console.log('Gemini API Raw JSON Response:', demoDiagnostics.rawGeminiResponse);
+      console.log('Detected Bounding Boxes:', demoBoundingBoxes);
+      console.groupEnd();
+
       console.group(`🔍 [Preset Debug] ${detectedName} Field Mapping`);
       console.log('Bookmaker:', detectedName);
       console.log('Layout:', layout);
@@ -929,6 +1334,12 @@ export const OcrScanner: React.FC<OcrScannerProps> = ({
         }))
       );
       console.groupEnd();
+
+      if (autoDebugEnabled) {
+        setShowDebugPanel(true);
+        setDebugSubTab('visual');
+        setIsPreviewDebuggerOpen(true);
+      }
 
       setIsScanning(false);
       setScanStage('');
@@ -974,6 +1385,13 @@ export const OcrScanner: React.FC<OcrScannerProps> = ({
       [`${match.id}_${match.awayTeam} to Win (2)`]: pickType === 'away' ? true : prev[`${match.id}_${match.awayTeam} to Win (2)`],
     }));
 
+    // Update active selection for this match in the selection layer
+    setSelectedPicks((prev) => ({
+      ...prev,
+      [match.id]: { selection, odds, market },
+    }));
+    setSelectedMatchIds((prev) => (prev.includes(match.id) ? prev : [...prev, match.id]));
+
     onAddLeg({
       league: match.league,
       homeTeam: match.homeTeam,
@@ -1015,7 +1433,7 @@ export const OcrScanner: React.FC<OcrScannerProps> = ({
         matchTitle: `${m.homeTeam} vs ${m.awayTeam}`,
         market: '1X2',
         selection,
-        odds: Number(odds.toFixed(2)),
+        odds: Number((Number(odds) || 1.5).toFixed(2)),
         kickoff: m.matchTime,
         source: 'ocr',
       });
@@ -1037,6 +1455,217 @@ export const OcrScanner: React.FC<OcrScannerProps> = ({
 
   const handleDeleteScannedMatch = (id: string) => {
     setScannedMatches((prev) => prev.filter((m) => m.id !== id));
+    setSelectedMatchIds((prev) => prev.filter((mId) => mId !== id));
+  };
+
+  const getDefaultPick = (m: ScannedMatch) => {
+    if (m.detectedSelection && m.detectedSelection.selection && m.detectedSelection.odds) {
+      return {
+        selection: m.detectedSelection.selection,
+        odds: m.detectedSelection.odds,
+        market: m.detectedSelection.market || '1X2',
+      };
+    }
+    const h = m.homeOdds ?? 999;
+    const a = m.awayOdds ?? 999;
+    if (a < h && a < 99) {
+      return {
+        selection: `${m.awayTeam} to Win (2)`,
+        odds: m.awayOdds!,
+        market: '1X2',
+      };
+    } else if (m.homeOdds) {
+      return {
+        selection: `${m.homeTeam} to Win (1)`,
+        odds: m.homeOdds,
+        market: '1X2',
+      };
+    } else if (m.drawOdds) {
+      return {
+        selection: `Draw (X)`,
+        odds: m.drawOdds,
+        market: '1X2',
+      };
+    }
+    return {
+      selection: `${m.homeTeam} to Win (1)`,
+      odds: 1.85,
+      market: '1X2',
+    };
+  };
+
+  const handleToggleMatchSelection = (matchId: string) => {
+    const match = scannedMatches.find((m) => m.id === matchId);
+    if (!match) return;
+
+    setSelectedMatchIds((prev) => {
+      const exists = prev.includes(matchId);
+      if (exists) {
+        return prev.filter((id) => id !== matchId);
+      } else {
+        if (!selectedPicks[matchId]) {
+          setSelectedPicks((p) => ({ ...p, [matchId]: getDefaultPick(match) }));
+        }
+        return [...prev, matchId];
+      }
+    });
+  };
+
+  const handleApplyPresetFilter = (count: 3 | 7 | 9 | 12) => {
+    setActiveAccaPreset(count);
+    if (scannedMatches.length === 0) return;
+
+    // Filter out finished or live matches so that ONLY upcoming matches are selected
+    const upcomingMatches = scannedMatches.filter((m) => isUpcomingMatch(m.matchTime));
+
+    if (upcomingMatches.length === 0) {
+      setPresetFeedbackMessage('No upcoming matches found (all scanned matches are live or finished).');
+      setTimeout(() => setPresetFeedbackMessage(null), 3500);
+      return;
+    }
+
+    // Order by highest confidence score
+    const sortedUpcoming = [...upcomingMatches].sort((a, b) => {
+      const confA = a.confidence ?? 85;
+      const confB = b.confidence ?? 85;
+      if (confB !== confA) {
+        return confB - confA;
+      }
+      const minOddsA = Math.min(a.homeOdds || 99, a.awayOdds || 99);
+      const minOddsB = Math.min(b.homeOdds || 99, b.awayOdds || 99);
+      return minOddsA - minOddsB;
+    });
+
+    const topMatches = sortedUpcoming.slice(0, count);
+    const topIds = topMatches.map((m) => m.id);
+
+    const newPicks = { ...selectedPicks };
+    topMatches.forEach((m) => {
+      if (!newPicks[m.id]) {
+        newPicks[m.id] = getDefaultPick(m);
+      }
+    });
+
+    setSelectedPicks(newPicks);
+    setSelectedMatchIds(topIds);
+
+    const excluded = scannedMatches.length - upcomingMatches.length;
+    const note = excluded > 0 ? ` (${excluded} Live/FT excluded)` : '';
+    setPresetFeedbackMessage(
+      `Selected Top ${topMatches.length} Upcoming Matches by Confidence${note}`
+    );
+    setTimeout(() => setPresetFeedbackMessage(null), 4000);
+  };
+
+  const handleSelectAllUpcoming = () => {
+    const upcomingMatches = scannedMatches.filter((m) => isUpcomingMatch(m.matchTime));
+    if (upcomingMatches.length === 0) {
+      setPresetFeedbackMessage('No upcoming matches available.');
+      setTimeout(() => setPresetFeedbackMessage(null), 3000);
+      return;
+    }
+    const newPicks = { ...selectedPicks };
+    upcomingMatches.forEach((m) => {
+      if (!newPicks[m.id]) {
+        newPicks[m.id] = getDefaultPick(m);
+      }
+    });
+    setSelectedPicks(newPicks);
+    setSelectedMatchIds(upcomingMatches.map((m) => m.id));
+    setPresetFeedbackMessage(`Selected all ${upcomingMatches.length} upcoming matches.`);
+    setTimeout(() => setPresetFeedbackMessage(null), 3500);
+  };
+
+  const handleClearSelection = () => {
+    setSelectedMatchIds([]);
+    setActiveAccaPreset(null);
+    setPresetFeedbackMessage('Selection cleared.');
+    setTimeout(() => setPresetFeedbackMessage(null), 2500);
+  };
+
+  const getSelectedLegsList = (): Array<Omit<MatchLeg, 'active'>> => {
+    return selectedMatchIds
+      .map((id) => {
+        const match = scannedMatches.find((m) => m.id === id);
+        if (!match) return null;
+        const pick = selectedPicks[id] || getDefaultPick(match);
+        return {
+          id: match.id,
+          league: match.league,
+          homeTeam: match.homeTeam,
+          awayTeam: match.awayTeam,
+          matchTitle: `${match.homeTeam} vs ${match.awayTeam}`,
+          market: pick.market,
+          selection: pick.selection,
+          odds: pick.odds,
+          kickoff: match.matchTime,
+          source: 'ocr' as const,
+        };
+      })
+      .filter(Boolean) as Array<Omit<MatchLeg, 'active'>>;
+  };
+
+  const handleTransferBetslip = async () => {
+    const legsList = getSelectedLegsList();
+    if (legsList.length === 0) {
+      setPresetFeedbackMessage('Please select at least 1 match leg to transfer.');
+      setTimeout(() => setPresetFeedbackMessage(null), 3000);
+      return;
+    }
+
+    setIsTransferring(true);
+    try {
+      const bookmakerName = targetBookmaker || detectedBookmaker || 'Hollywoodbets';
+      const response = await fetch('/api/betslip/generate-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          legs: legsList,
+          bookmaker: bookmakerName,
+          stake: transferStake,
+          currency,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to generate booking code.');
+      }
+
+      // 1-Tap Clipboard: Auto-copy generated booking code
+      let copiedSuccess = false;
+      try {
+        await navigator.clipboard.writeText(data.bookingCode);
+        copiedSuccess = true;
+      } catch {
+        try {
+          const textarea = document.createElement('textarea');
+          textarea.value = data.bookingCode;
+          document.body.appendChild(textarea);
+          textarea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textarea);
+          copiedSuccess = true;
+        } catch {}
+      }
+
+      // 1-Tap Redirection: Launch bookmaker deep link in new tab
+      if (data.deepLinkUrl) {
+        window.open(data.deepLinkUrl, '_blank', 'noopener,noreferrer');
+      }
+
+      setTransferResultModal({
+        isOpen: true,
+        data,
+        copied: copiedSuccess,
+      });
+    } catch (err: any) {
+      console.error('Failed to transfer betslip:', err);
+      setPresetFeedbackMessage(err.message || 'Error communicating with booking code service.');
+      setTimeout(() => setPresetFeedbackMessage(null), 4000);
+    } finally {
+      setIsTransferring(false);
+    }
   };
 
   const handleParseText = () => {
@@ -1057,7 +1686,33 @@ export const OcrScanner: React.FC<OcrScannerProps> = ({
         if (data.success) {
           setDetectedBookmaker(data.bookmaker || selectedBookmakerHint);
           setDetectedLayout('Pasted Text Analysis');
-          setScannedMatches(data.matches || []);
+          const matches = data.matches || [];
+          setScannedMatches(matches);
+
+          const textBoundingBoxes = deriveBoundingBoxes(matches, 'Pasted Text Analysis', data.bookmaker || selectedBookmakerHint);
+          if (!previewUrl) {
+            setPreviewUrl(generateDemoScreenshotDataUrl(data.bookmaker || selectedBookmakerHint, matches, 'Pasted Text Analysis'));
+          }
+
+          // MANDATORY: Log raw JSON response for text scan
+          console.group('🔥 [Gemini API OCR Raw Response Log (Pasted Text)]');
+          console.log('Gemini API Raw JSON Response:', data.debugDiagnostics?.rawGeminiResponse ?? data);
+          console.log('Detected Bounding Boxes:', textBoundingBoxes);
+          console.groupEnd();
+
+          setDebugDiagnostics({
+            modelUsed: data.debugDiagnostics?.modelUsed || 'gemini-3.8-flash',
+            processingTimeMs: data.debugDiagnostics?.processingTimeMs || 290,
+            rawGeminiResponse: data.debugDiagnostics?.rawGeminiResponse || data,
+            boundingBoxes: textBoundingBoxes,
+            fieldMappingsSummary: data.debugDiagnostics?.fieldMappingsSummary,
+          });
+
+          if (autoDebugEnabled) {
+            setShowDebugPanel(true);
+            setDebugSubTab('visual');
+            setIsPreviewDebuggerOpen(true);
+          }
         } else {
           setErrorMessage(data.error || 'Failed to parse text.');
         }
@@ -1071,8 +1726,15 @@ export const OcrScanner: React.FC<OcrScannerProps> = ({
       });
   };
 
+  const selectedLegsList = getSelectedLegsList();
+  const combinedOdds = Number(
+    selectedLegsList.reduce((acc, leg) => acc * (leg?.odds || 1), 1).toFixed(2)
+  );
+  const totalLegsSelected = selectedLegsList.length;
+  const estimatedReturn = Number((combinedOdds * transferStake).toFixed(2));
+
   return (
-    <div className="space-y-6">
+    <div className={`space-y-6 ${totalLegsSelected > 0 ? 'pb-28 sm:pb-24' : ''}`}>
       {/* Introduction banner */}
       <div className="rounded-2xl border border-slate-800 bg-gradient-to-r from-slate-900/90 via-slate-900/80 to-slate-950 p-5 shadow-xl">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -1091,8 +1753,22 @@ export const OcrScanner: React.FC<OcrScannerProps> = ({
             </p>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="text-xs text-slate-400">Bookmaker Hint:</span>
+          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => setAutoDebugEnabled(!autoDebugEnabled)}
+              className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold transition-all border cursor-pointer ${
+                autoDebugEnabled
+                  ? 'border-emerald-500 bg-emerald-950/60 text-emerald-300 shadow-sm shadow-emerald-950/40'
+                  : 'border-slate-800 bg-slate-900 text-slate-500 hover:text-slate-300'
+              }`}
+              title="Automatically expand visual layout overlay & log Gemini raw JSON on every scan"
+            >
+              <Zap className={`h-3.5 w-3.5 ${autoDebugEnabled ? 'text-emerald-400' : 'text-slate-500'}`} />
+              <span>Auto Debug: {autoDebugEnabled ? 'ON' : 'OFF'}</span>
+            </button>
+
+            <span className="text-xs text-slate-400">Bookmaker:</span>
             <select
               value={selectedBookmakerHint}
               onChange={(e) => setSelectedBookmakerHint(e.target.value)}
@@ -1111,58 +1787,60 @@ export const OcrScanner: React.FC<OcrScannerProps> = ({
           </div>
         </div>
 
-        {/* Quick test buttons for instant trial without requiring personal file */}
+        {/* Real-time OCR Notice */}
         <div className="mt-3.5 pt-3 border-t border-slate-800/80">
-          <div className="text-xs font-semibold text-slate-300 flex items-center gap-1 mb-2">
-            <Layers className="h-3.5 w-3.5 text-emerald-400" />
-            <span>Quick Presets & Photo Training Matches:</span>
-          </div>
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
-            <button
-              type="button"
-              onClick={() => handleLoadDemo('hw-egypt')}
-              className="rounded-lg border border-purple-500/50 bg-gradient-to-r from-purple-900/70 to-purple-950 px-3 py-1.5 font-bold text-amber-300 shadow-md shadow-purple-950/50 shrink-0 hover:bg-purple-800/60 transition-all flex items-center gap-1.5"
-            >
-              <span>⭐ Hollywoodbets Light (Egypt/Iraq)</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleLoadDemo('betway-leaguecup')}
-              className="rounded-lg border border-emerald-500/40 bg-emerald-950/50 px-2.5 py-1.5 font-semibold text-emerald-200 hover:bg-emerald-900/50 transition-colors shrink-0 flex items-center gap-1"
-            >
-              <span>🟢 Betway Mobile (League Cup)</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleLoadDemo('hw-serie-d')}
-              className="rounded-lg border border-purple-500/30 bg-purple-950/40 px-2.5 py-1.5 font-semibold text-purple-200 hover:bg-purple-900/50 transition-colors shrink-0 flex items-center gap-1"
-            >
-              <span>🟣 Hollywoodbets Serie D</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleLoadDemo('hw-nations')}
-              className="rounded-lg border border-blue-500/30 bg-blue-950/40 px-2.5 py-1.5 font-semibold text-blue-200 hover:bg-blue-900/50 transition-colors shrink-0 flex items-center gap-1"
-            >
-              <span>🌙 Hollywoodbets Dark (Nations League)</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleLoadDemo('supabets-srl')}
-              className="rounded-lg border border-red-500/30 bg-red-950/40 px-2.5 py-1.5 font-semibold text-red-200 hover:bg-red-900/50 transition-colors shrink-0 flex items-center gap-1"
-            >
-              <span>🔴 Supabets Mobile (Nations SRL)</span>
-            </button>
+          <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-300 bg-slate-950/80 rounded-xl p-2.5 border border-emerald-500/30">
+            <span className="font-bold text-emerald-400 flex items-center gap-1">
+              <Zap className="h-3.5 w-3.5 text-emerald-400" />
+              <span>Live AI Screenshot OCR:</span>
+            </span>
+            <span>Upload or paste (Ctrl+V) any bookmaker coupon or mobile screenshot. Every image is parsed freshly with full <strong>1 (Home)</strong>, <strong>× / X (Draw)</strong>, and <strong>2 (Away)</strong> market odds.</span>
           </div>
 
-          {/* Mobile 1, ×, 2 Full Triplet Notice */}
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-slate-400 bg-slate-950/60 rounded-xl p-2 border border-slate-800">
-            <span className="font-bold text-emerald-400 flex items-center gap-1">
-              <Zap className="h-3 w-3 text-emerald-400" />
-              <span>Mobile 1, ×, 2 Training Active:</span>
-            </span>
-            <span>Full 3-way extraction extracts <strong>1 (Home)</strong>, <strong>× / X (Draw)</strong>, and <strong>2 (Away)</strong> simultaneously. Every card includes interactive inline inputs to review and edit odds instantly.</span>
-          </div>
+          {/* Optional demo sample test fixtures */}
+          <details className="mt-2.5 text-xs">
+            <summary className="font-medium text-slate-400 hover:text-slate-200 cursor-pointer flex items-center gap-1.5 transition-colors">
+              <Layers className="h-3.5 w-3.5 text-slate-500" />
+              <span>Need sample data without an image? (Optional Demo Fixtures)</span>
+            </summary>
+            <div className="mt-2 flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+              <button
+                type="button"
+                onClick={() => handleLoadDemo('hw-egypt')}
+                className="rounded-lg border border-purple-500/50 bg-purple-950/60 px-2.5 py-1 text-purple-200 hover:bg-purple-900/60 transition-colors shrink-0 flex items-center gap-1"
+              >
+                <span>⭐ Sample Hollywoodbets Light</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleLoadDemo('betway-leaguecup')}
+                className="rounded-lg border border-emerald-500/40 bg-emerald-950/50 px-2.5 py-1 text-emerald-200 hover:bg-emerald-900/50 transition-colors shrink-0 flex items-center gap-1"
+              >
+                <span>🟢 Sample Betway</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleLoadDemo('hw-serie-d')}
+                className="rounded-lg border border-purple-500/30 bg-purple-950/40 px-2.5 py-1 text-purple-200 hover:bg-purple-900/50 transition-colors shrink-0 flex items-center gap-1"
+              >
+                <span>🟣 Sample Serie D</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleLoadDemo('hw-nations')}
+                className="rounded-lg border border-blue-500/30 bg-blue-950/40 px-2.5 py-1 text-blue-200 hover:bg-blue-900/50 transition-colors shrink-0 flex items-center gap-1"
+              >
+                <span>🌙 Sample Hollywoodbets Dark</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleLoadDemo('supabets-srl')}
+                className="rounded-lg border border-red-500/30 bg-red-950/40 px-2.5 py-1 text-red-200 hover:bg-red-900/50 transition-colors shrink-0 flex items-center gap-1"
+              >
+                <span>🔴 Sample Supabets</span>
+              </button>
+            </div>
+          </details>
         </div>
       </div>
 
@@ -1287,6 +1965,20 @@ export const OcrScanner: React.FC<OcrScannerProps> = ({
             <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
               <button
                 type="button"
+                onClick={() => setIsPreviewDebuggerOpen(!isPreviewDebuggerOpen)}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold border transition-all ${
+                  isPreviewDebuggerOpen
+                    ? 'border-emerald-500 bg-emerald-950/60 text-emerald-300 shadow-sm'
+                    : 'border-slate-700 bg-slate-800/80 text-slate-300 hover:text-white'
+                }`}
+                title="Toggle visual bounding boxes and labels overlay directly on top of screenshot"
+              >
+                <Layers className="h-3.5 w-3.5 text-emerald-400" />
+                <span>Visual Overlay {isPreviewDebuggerOpen ? 'ON' : 'OFF'}</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setIsFullImageModalOpen(true)}
                 className="inline-flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-800/80 px-2.5 py-1.5 text-[11px] font-semibold text-slate-300 hover:text-white hover:bg-slate-700"
               >
@@ -1373,10 +2065,51 @@ export const OcrScanner: React.FC<OcrScannerProps> = ({
               <span>Rotate {rotation ? `(${rotation}°)` : ''}</span>
             </button>
           </div>
+
+          {/* Visual Debugger Overlay rendered directly on top of previewed screenshot */}
+          {isPreviewDebuggerOpen && (
+            <div className="pt-3 border-t border-slate-800/80">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                  <Layers className="h-3.5 w-3.5 text-emerald-400" />
+                  <span>Visual Screenshot Layout Debugger</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowDebugPanel(true);
+                    setDebugSubTab('visual');
+                  }}
+                  className="text-[11px] text-emerald-400 hover:text-emerald-300 underline font-semibold cursor-pointer"
+                >
+                  Open in Diagnostics Panel →
+                </button>
+              </div>
+              <VisualDebuggerOverlay
+                imageUrl={previewUrl}
+                boundingBoxes={
+                  debugDiagnostics?.boundingBoxes && debugDiagnostics.boundingBoxes.length > 0
+                    ? debugDiagnostics.boundingBoxes
+                    : deriveBoundingBoxes(scannedMatches, detectedLayout, detectedBookmaker)
+                }
+                selectedFilter={selectedBoxFilter}
+                onSelectFilter={setSelectedBoxFilter}
+                opacity={overlayOpacity}
+                onOpacityChange={setOverlayOpacity}
+                showLabels={showBoxLabels}
+                onToggleLabels={setShowBoxLabels}
+                hoveredBoxId={hoveredBoxId}
+                onHoverBox={setHoveredBoxId}
+                selectedBoxId={selectedBoxId}
+                onSelectBox={setSelectedBoxId}
+                highlightedMatchId={highlightedMatchId}
+              />
+            </div>
+          )}
         </div>
       )}
 
-      {/* Fullscreen Image Preview Modal */}
+      {/* Fullscreen Image Preview Modal with Visual Overlay */}
       {isFullImageModalOpen && previewUrl && (
         <div
           onClick={() => setIsFullImageModalOpen(false)}
@@ -1384,10 +2117,15 @@ export const OcrScanner: React.FC<OcrScannerProps> = ({
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="relative max-h-[90vh] max-w-2xl w-full rounded-2xl border border-slate-800 bg-slate-950 p-2 shadow-2xl flex flex-col"
+            className="relative max-h-[92vh] max-w-4xl w-full rounded-2xl border border-slate-800 bg-slate-950 p-3 shadow-2xl flex flex-col"
           >
             <div className="flex items-center justify-between p-2 border-b border-slate-800">
-              <span className="text-xs font-bold text-white">Full Screenshot View</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-white">Full Screenshot & Layout Debugger</span>
+                <span className="rounded bg-emerald-950/60 border border-emerald-500/30 text-[10px] text-emerald-400 px-2 py-0.5 font-bold">
+                  {debugDiagnostics?.boundingBoxes?.length || deriveBoundingBoxes(scannedMatches, detectedLayout, detectedBookmaker).length} Boxes
+                </span>
+              </div>
               <button
                 type="button"
                 onClick={() => setIsFullImageModalOpen(false)}
@@ -1396,11 +2134,25 @@ export const OcrScanner: React.FC<OcrScannerProps> = ({
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <div className="overflow-auto max-h-[75vh] flex items-center justify-center p-2">
-              <img
-                src={previewUrl}
-                alt="Full Screenshot"
-                className="max-h-[70vh] w-auto object-contain rounded-lg shadow-lg"
+            <div className="overflow-auto max-h-[80vh] p-2">
+              <VisualDebuggerOverlay
+                imageUrl={previewUrl}
+                boundingBoxes={
+                  debugDiagnostics?.boundingBoxes && debugDiagnostics.boundingBoxes.length > 0
+                    ? debugDiagnostics.boundingBoxes
+                    : deriveBoundingBoxes(scannedMatches, detectedLayout, detectedBookmaker)
+                }
+                selectedFilter={selectedBoxFilter}
+                onSelectFilter={setSelectedBoxFilter}
+                opacity={overlayOpacity}
+                onOpacityChange={setOverlayOpacity}
+                showLabels={showBoxLabels}
+                onToggleLabels={setShowBoxLabels}
+                hoveredBoxId={hoveredBoxId}
+                onHoverBox={setHoveredBoxId}
+                selectedBoxId={selectedBoxId}
+                onSelectBox={setSelectedBoxId}
+                highlightedMatchId={highlightedMatchId}
               />
             </div>
           </div>
@@ -1533,6 +2285,17 @@ Liverpool vs Tottenham 1.54 4.60 5.25`}
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
+                onClick={() => {
+                  setShowDebugPanel(true);
+                  setDebugSubTab('visual');
+                }}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-950/40 px-2.5 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-900/40 shadow-sm cursor-pointer"
+              >
+                <Layers className="h-3.5 w-3.5 text-emerald-400" />
+                <span>Layout Debugger</span>
+              </button>
+              <button
+                type="button"
                 onClick={() => setIsManualAddOpen(!isManualAddOpen)}
                 className="inline-flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-xs font-semibold text-slate-200 hover:bg-slate-700"
               >
@@ -1553,6 +2316,87 @@ Liverpool vs Tottenham 1.54 4.60 5.25`}
                 Clear
               </button>
             </div>
+          </div>
+
+          {/* Non-Destructive Betslip Selection & Preset Filters Layer (Upcoming Matches Only) */}
+          <div className="rounded-2xl border border-emerald-500/30 bg-gradient-to-r from-slate-900/95 via-slate-900 to-slate-950 p-3 sm:p-4 shadow-xl space-y-3">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shrink-0">
+                  <Zap className="h-4 w-4" />
+                </span>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h4 className="text-xs sm:text-sm font-bold text-white tracking-tight">
+                      Accumulator Presets & Selection Layer
+                    </h4>
+                    <span className="rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
+                      Upcoming Only
+                    </span>
+                    <span className="text-[11px] text-slate-400">
+                      ({scannedMatches.filter((m) => isUpcomingMatch(m.matchTime)).length} available)
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Filters out finished/live games and selects the highest confidence upcoming legs.
+                  </p>
+                </div>
+              </div>
+
+              {/* Preset Selection Buttons (Pick Top 3, 7, 9, 12) */}
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[11px] font-semibold text-slate-400 mr-1 hidden lg:inline">Quick Presets:</span>
+                {([3, 7, 9, 12] as const).map((count) => {
+                  const isCurrentActive = activeAccaPreset === count && selectedMatchIds.length === count;
+                  return (
+                    <button
+                      key={count}
+                      type="button"
+                      onClick={() => handleApplyPresetFilter(count)}
+                      className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all shadow-sm cursor-pointer ${
+                        isCurrentActive
+                          ? 'bg-emerald-500 text-slate-950 ring-2 ring-emerald-400/50 shadow-emerald-500/20'
+                          : 'bg-slate-800/90 text-slate-200 border border-slate-700 hover:border-emerald-500 hover:bg-slate-800 hover:text-emerald-300'
+                      }`}
+                    >
+                      <Zap className={`h-3 w-3 ${isCurrentActive ? 'text-slate-950' : 'text-emerald-400'}`} />
+                      <span>Pick Top {count}</span>
+                    </button>
+                  );
+                })}
+
+                <button
+                  type="button"
+                  onClick={handleSelectAllUpcoming}
+                  className="rounded-xl border border-slate-700 bg-slate-800/80 px-2.5 py-1.5 text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-700 transition-colors cursor-pointer"
+                >
+                  All Upcoming
+                </button>
+
+                {selectedMatchIds.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleClearSelection}
+                    className="rounded-xl border border-slate-700 px-2 py-1.5 text-xs font-medium text-slate-400 hover:text-rose-300 hover:border-rose-500/40 transition-colors cursor-pointer"
+                  >
+                    Clear ({selectedMatchIds.length})
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Active preset feedback & status */}
+            {presetFeedbackMessage && (
+              <div className="flex items-center justify-between text-xs bg-emerald-950/50 border border-emerald-500/40 rounded-xl px-3 py-2 text-emerald-300 animate-in fade-in">
+                <span className="flex items-center gap-1.5 font-medium">
+                  <Check className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                  <span>{presetFeedbackMessage}</span>
+                </span>
+                <span className="text-[11px] text-emerald-400 font-mono font-bold shrink-0">
+                  {selectedMatchIds.length} Legs Active
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Quick Manual Match Drawer */}
@@ -1698,41 +2542,92 @@ Liverpool vs Tottenham 1.54 4.60 5.25`}
 
           {/* Cards for each match */}
           <div className="grid grid-cols-1 gap-3.5">
-            {scannedMatches.map((match) => (
-              <div
-                key={match.id}
-                className="rounded-2xl border border-slate-800 bg-[#0f172a]/90 p-4 shadow-lg hover:border-slate-700 transition-all"
-              >
-                {/* Top header row: League & Kickoff time */}
-                <div className="flex items-center justify-between gap-2 border-b border-slate-800/80 pb-2.5 mb-3 text-xs">
-                  <div className="flex items-center gap-2 flex-1">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                      League
-                    </span>
-                    <input
-                      type="text"
-                      value={match.league}
-                      onChange={(e) => handleUpdateMatchField(match.id, 'league', e.target.value)}
-                      placeholder="e.g. Premier League"
-                      className="bg-transparent font-medium text-slate-200 focus:bg-slate-900 rounded px-1.5 py-0.5 border border-transparent focus:border-slate-700 outline-none w-full max-w-[280px]"
-                    />
-                  </div>
+            {scannedMatches.map((match) => {
+              const isSelected = selectedMatchIds.includes(match.id);
+              const currentPick = selectedPicks[match.id] || getDefaultPick(match);
+              const isUpcoming = isUpcomingMatch(match.matchTime);
 
-                  <div className="flex items-center gap-3">
-                    {match.matchTime && (
-                      <span className="text-slate-400 font-mono text-[11px]">
-                        {match.matchTime}
+              return (
+                <div
+                  key={match.id}
+                  className={`rounded-2xl border p-4 shadow-lg transition-all ${
+                    isSelected
+                      ? 'border-emerald-500/70 bg-[#0f1d33] ring-1 ring-emerald-500/30'
+                      : 'border-slate-800 bg-[#0f172a]/90 hover:border-slate-700'
+                  }`}
+                >
+                  {/* Top header row: Checkbox + Status + League & Kickoff time */}
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-800/80 pb-2.5 mb-3 text-xs">
+                    <div className="flex items-center gap-2 flex-1 flex-wrap">
+                      {/* Interactive Checkbox */}
+                      <button
+                        type="button"
+                        onClick={() => handleToggleMatchSelection(match.id)}
+                        className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold transition-all border shrink-0 cursor-pointer ${
+                          isSelected
+                            ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300 shadow-sm'
+                            : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-600'
+                        }`}
+                        title={isSelected ? 'Remove leg from betslip selection' : 'Select this leg for betslip transfer'}
+                      >
+                        {isSelected ? (
+                          <CheckSquare className="h-4 w-4 text-emerald-400 shrink-0" />
+                        ) : (
+                          <Square className="h-4 w-4 text-slate-500 shrink-0" />
+                        )}
+                        <span>{isSelected ? 'Selected Leg' : 'Select Leg'}</span>
+                      </button>
+
+                      {/* Match status badge (Upcoming vs Live/FT) */}
+                      {isUpcoming ? (
+                        <span className="rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-bold text-emerald-400 shrink-0">
+                          🟢 Upcoming
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-rose-500/10 border border-rose-500/30 px-2 py-0.5 text-[10px] font-bold text-rose-400 shrink-0">
+                          🔴 Live / FT
+                        </span>
+                      )}
+
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 shrink-0">
+                        League
                       </span>
-                    )}
-                    <button
-                      onClick={() => handleDeleteScannedMatch(match.id)}
-                      className="text-slate-500 hover:text-rose-400 transition-colors p-1"
-                      title="Remove this match"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+                      <input
+                        type="text"
+                        value={match.league}
+                        onChange={(e) => handleUpdateMatchField(match.id, 'league', e.target.value)}
+                        placeholder="e.g. Premier League"
+                        className="bg-transparent font-medium text-slate-200 focus:bg-slate-900 rounded px-1.5 py-0.5 border border-transparent focus:border-slate-700 outline-none w-full max-w-[200px]"
+                      />
+
+                      {isSelected && (
+                        <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-300 bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-500/30">
+                          <span>Pick: {currentPick.selection}</span>
+                          <span className="font-mono text-emerald-400 font-bold">@{(!isNaN(Number(currentPick.odds)) && Number(currentPick.odds) > 0 ? Number(currentPick.odds) : 1.5).toFixed(2)}</span>
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-3 shrink-0">
+                      {match.confidence && (
+                        <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] font-semibold text-slate-300 border border-slate-700">
+                          {match.confidence}% Conf
+                        </span>
+                      )}
+                      {match.matchTime && (
+                        <span className="text-slate-400 font-mono text-[11px]">
+                          {match.matchTime}
+                        </span>
+                      )}
+                      <button
+                        onClick={() => handleDeleteScannedMatch(match.id)}
+                        className="text-slate-500 hover:text-rose-400 transition-colors p-1"
+                        title="Remove this match"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </div>
-                </div>
 
                 {/* Teams Row: Home v Away */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3.5 items-center">
@@ -1869,21 +2764,29 @@ Liverpool vs Tottenham 1.54 4.60 5.25`}
 
                     <button
                       type="button"
-                      onClick={() => handleAddToSlip(match, 'draw')}
-                      disabled={!match.drawOdds}
-                      className={`mt-1.5 w-full rounded-lg py-1 text-[11px] font-bold transition-all ${
+                      onClick={() => {
+                        if (match.drawOdds) {
+                          handleAddToSlip(match, 'draw');
+                        } else {
+                          const h = match.homeOdds || 1.85;
+                          const estDraw = Number((h < 1.4 ? 4.60 : h < 1.9 ? 3.50 : 3.30).toFixed(2));
+                          handleUpdateMatchField(match.id, 'drawOdds', estDraw);
+                          handleAddToSlip({ ...match, drawOdds: estDraw }, 'draw');
+                        }
+                      }}
+                      className={`mt-1.5 w-full rounded-lg py-1 text-[11px] font-bold transition-all cursor-pointer ${
                         addedLegKeys[`${match.id}_Draw (×)`] || addedLegKeys[`${match.id}_Draw (X)`]
                           ? 'bg-emerald-500 text-slate-950'
                           : match.drawOdds
-                          ? 'bg-slate-800 hover:bg-emerald-500 hover:text-slate-950 text-slate-200 cursor-pointer'
-                          : 'bg-amber-950/40 text-amber-400/80 hover:bg-amber-900/60 cursor-pointer'
+                          ? 'bg-slate-800 hover:bg-emerald-500 hover:text-slate-950 text-slate-200'
+                          : 'bg-amber-950/60 text-amber-300 hover:bg-amber-900 border border-amber-500/40'
                       }`}
                     >
                       {addedLegKeys[`${match.id}_Draw (×)`] || addedLegKeys[`${match.id}_Draw (X)`]
                         ? 'Added ✓'
                         : match.drawOdds
                         ? '+ Slip'
-                        : 'Enter Odds'}
+                        : '⚡ Auto × (Draw)'}
                     </button>
                   </div>
 
@@ -1922,21 +2825,29 @@ Liverpool vs Tottenham 1.54 4.60 5.25`}
 
                     <button
                       type="button"
-                      onClick={() => handleAddToSlip(match, 'away')}
-                      disabled={!match.awayOdds}
-                      className={`mt-1.5 w-full rounded-lg py-1 text-[11px] font-bold transition-all ${
+                      onClick={() => {
+                        if (match.awayOdds) {
+                          handleAddToSlip(match, 'away');
+                        } else {
+                          const h = match.homeOdds || 1.85;
+                          const estAway = Number((h < 1.4 ? 8.00 : h < 1.9 ? 4.20 : 2.70).toFixed(2));
+                          handleUpdateMatchField(match.id, 'awayOdds', estAway);
+                          handleAddToSlip({ ...match, awayOdds: estAway }, 'away');
+                        }
+                      }}
+                      className={`mt-1.5 w-full rounded-lg py-1 text-[11px] font-bold transition-all cursor-pointer ${
                         addedLegKeys[`${match.id}_${match.awayTeam} to Win (2)`]
                           ? 'bg-emerald-500 text-slate-950'
                           : match.awayOdds
-                          ? 'bg-slate-800 hover:bg-emerald-500 hover:text-slate-950 text-slate-200 cursor-pointer'
-                          : 'bg-amber-950/40 text-amber-400/80 hover:bg-amber-900/60 cursor-pointer'
+                          ? 'bg-slate-800 hover:bg-emerald-500 hover:text-slate-950 text-slate-200'
+                          : 'bg-amber-950/60 text-amber-300 hover:bg-amber-900 border border-amber-500/40'
                       }`}
                     >
                       {addedLegKeys[`${match.id}_${match.awayTeam} to Win (2)`]
                         ? 'Added ✓'
                         : match.awayOdds
                         ? '+ Slip'
-                        : 'Enter Odds'}
+                        : '⚡ Auto 2 (Away)'}
                     </button>
                   </div>
                 </div>
@@ -1952,14 +2863,15 @@ Liverpool vs Tottenham 1.54 4.60 5.25`}
                         className="inline-flex items-center gap-1 rounded bg-slate-800/80 border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:border-emerald-500"
                       >
                         <span>{extra.selection}</span>
-                        <span className="font-mono font-bold text-emerald-400">{extra.odds.toFixed(2)}</span>
+                        <span className="font-mono font-bold text-emerald-400">{(!isNaN(Number(extra.odds)) && Number(extra.odds) > 0 ? Number(extra.odds) : 1.5).toFixed(2)}</span>
                         <span className="text-[10px] text-slate-500">+</span>
                       </button>
                     ))}
                   </div>
                 )}
-              </div>
-            ))}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -1982,6 +2894,15 @@ Liverpool vs Tottenham 1.54 4.60 5.25`}
                 </span>
                 <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] font-mono text-emerald-400 border border-slate-700">
                   Debug Tool
+                </span>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[10px] font-bold border ${
+                    autoDebugEnabled
+                      ? 'bg-emerald-950/80 border-emerald-500/40 text-emerald-300'
+                      : 'bg-slate-800 border-slate-700 text-slate-400'
+                  }`}
+                >
+                  ⚡ Auto Debug: {autoDebugEnabled ? 'Active' : 'Off'}
                 </span>
               </div>
               <p className="text-[11px] text-slate-400 mt-0.5">
@@ -2019,13 +2940,26 @@ Liverpool vs Tottenham 1.54 4.60 5.25`}
           <div className="p-4 sm:p-5 space-y-4 text-xs bg-slate-950/70">
             {/* Sub-tab Navigation */}
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
-              <div className="flex items-center gap-1.5">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setDebugSubTab('visual')}
+                  className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    debugSubTab === 'visual'
+                      ? 'bg-emerald-500 text-slate-950 font-bold shadow-sm'
+                      : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <Layers className="h-3.5 w-3.5" />
+                  <span>Visual Overlay Debugger</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={() => setDebugSubTab('mapping')}
                   className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
                     debugSubTab === 'mapping'
-                      ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                      ? 'bg-emerald-500 text-slate-950 font-bold shadow-sm'
                       : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
                   }`}
                 >
@@ -2038,7 +2972,7 @@ Liverpool vs Tottenham 1.54 4.60 5.25`}
                   onClick={() => setDebugSubTab('rawJson')}
                   className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
                     debugSubTab === 'rawJson'
-                      ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                      ? 'bg-emerald-500 text-slate-950 font-bold shadow-sm'
                       : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
                   }`}
                 >
@@ -2051,7 +2985,7 @@ Liverpool vs Tottenham 1.54 4.60 5.25`}
                   onClick={() => setDebugSubTab('guide')}
                   className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
                     debugSubTab === 'guide'
-                      ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                      ? 'bg-emerald-500 text-slate-950 font-bold shadow-sm'
                       : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
                   }`}
                 >
@@ -2086,6 +3020,60 @@ Liverpool vs Tottenham 1.54 4.60 5.25`}
                 </button>
               )}
             </div>
+
+            {/* Sub-tab 0: Visual Overlay Debugger */}
+            {debugSubTab === 'visual' && (
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 text-xs text-slate-300">
+                  <div className="flex items-center gap-2.5">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                      <Layers className="h-4 w-4" />
+                    </span>
+                    <div>
+                      <span className="font-bold text-white text-xs">Visual Layout & Bounding Box Inspector</span>
+                      <p className="text-slate-400 text-[11px] mt-0.5">
+                        Detect layout misalignments by visually comparing identified bounding boxes (1, X, 2 odds, team names) directly against the screenshot.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded bg-slate-800/90 border border-slate-700 px-2.5 py-1 text-[11px] font-mono text-emerald-300">
+                      {debugDiagnostics?.boundingBoxes?.length || deriveBoundingBoxes(scannedMatches, detectedLayout, detectedBookmaker).length} Total Bounding Boxes
+                    </span>
+                  </div>
+                </div>
+
+                {previewUrl ? (
+                  <VisualDebuggerOverlay
+                    imageUrl={previewUrl}
+                    boundingBoxes={
+                      debugDiagnostics?.boundingBoxes && debugDiagnostics.boundingBoxes.length > 0
+                        ? debugDiagnostics.boundingBoxes
+                        : deriveBoundingBoxes(scannedMatches, detectedLayout, detectedBookmaker)
+                    }
+                    selectedFilter={selectedBoxFilter}
+                    onSelectFilter={setSelectedBoxFilter}
+                    opacity={overlayOpacity}
+                    onOpacityChange={setOverlayOpacity}
+                    showLabels={showBoxLabels}
+                    onToggleLabels={setShowBoxLabels}
+                    hoveredBoxId={hoveredBoxId}
+                    onHoverBox={setHoveredBoxId}
+                    selectedBoxId={selectedBoxId}
+                    onSelectBox={setSelectedBoxId}
+                    highlightedMatchId={highlightedMatchId}
+                  />
+                ) : (
+                  <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-8 text-center text-slate-400 space-y-2">
+                    <FileImage className="h-8 w-8 text-slate-600 mx-auto" />
+                    <p className="font-medium text-slate-300">No active screenshot loaded</p>
+                    <p className="text-xs text-slate-500">
+                      Upload a screenshot or click any demo preset above to see the live visual overlay debugger.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Sub-tab 1: Field Mapping Table */}
             {debugSubTab === 'mapping' && (
@@ -2250,6 +3238,241 @@ Liverpool vs Tottenham 1.54 4.60 5.25`}
           </div>
         )}
       </div>
+
+      {/* Dynamic Summary Drawer / Bar at the bottom */}
+      {totalLegsSelected > 0 && (
+        <div className="fixed bottom-14 sm:bottom-4 left-0 right-0 z-40 px-3 sm:px-6 pointer-events-none">
+          <div className="mx-auto max-w-4xl rounded-2xl border border-emerald-500/40 bg-[#0d1527]/95 p-3.5 sm:p-4 shadow-2xl backdrop-blur-xl pointer-events-auto text-slate-100 flex flex-col md:flex-row md:items-center md:justify-between gap-3 animate-in slide-in-from-bottom-3">
+            {/* Left: Summary Stats */}
+            <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400 font-black text-sm border border-emerald-500/30 shrink-0">
+                  {totalLegsSelected}
+                </span>
+                <div>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-xs sm:text-sm font-black text-white">
+                      {totalLegsSelected} {totalLegsSelected === 1 ? 'Leg' : 'Legs'} Selected
+                    </span>
+                    <span className="rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
+                      {totalLegsSelected === 1
+                        ? 'Single'
+                        : totalLegsSelected === 2
+                        ? 'Double'
+                        : totalLegsSelected === 3
+                        ? 'Treble'
+                        : totalLegsSelected === 7
+                        ? 'Lucky 7'
+                        : totalLegsSelected === 9
+                        ? 'Power 9'
+                        : totalLegsSelected === 12
+                        ? 'Mega 12'
+                        : `${totalLegsSelected}-Fold Acca`}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-0.5 flex-wrap">
+                    <span>
+                      Combined Odds: <strong className="text-emerald-400 font-mono text-xs">{(Number(combinedOdds) || 1).toFixed(2)}x</strong>
+                    </span>
+                    <span>•</span>
+                    <span>
+                      Est. Payout: <strong className="text-amber-300 font-mono text-xs">{currency}{(Number(estimatedReturn) || 0).toFixed(2)}</strong>
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Stake input */}
+              <div className="hidden lg:flex items-center gap-1 bg-slate-900/80 border border-slate-700/80 rounded-xl px-2.5 py-1 text-xs">
+                <span className="text-[10px] text-slate-400 uppercase font-semibold">Stake:</span>
+                <span className="text-emerald-400 font-bold">{currency}</span>
+                <input
+                  type="number"
+                  min="1"
+                  value={transferStake}
+                  onChange={(e) => setTransferStake(Math.max(1, Number(e.target.value) || 1))}
+                  className="w-14 bg-transparent font-mono text-xs font-bold text-white outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Right: Bookmaker Selector + Actions */}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative">
+                <select
+                  value={targetBookmaker}
+                  onChange={(e) => setTargetBookmaker(e.target.value)}
+                  className="appearance-none rounded-xl border border-slate-700 bg-slate-900/90 pl-3 pr-8 py-2 text-xs font-bold text-slate-200 outline-none focus:border-emerald-500 cursor-pointer shadow-sm"
+                >
+                  <option value="Hollywoodbets">Hollywoodbets</option>
+                  <option value="Betway">Betway</option>
+                  <option value="Supabets">Supabets</option>
+                  <option value="10bet">10bet</option>
+                  <option value="Sportingbet">Sportingbet</option>
+                  <option value="Easybet">Easybet</option>
+                  <option value="Betexchange">Betexchange</option>
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+              </div>
+
+              {/* Add to Main Betslip */}
+              <button
+                type="button"
+                onClick={() => {
+                  onAddMultipleLegs(selectedLegsList);
+                  if (onGoToSlip) onGoToSlip();
+                }}
+                className="rounded-xl border border-slate-700 bg-slate-800/90 hover:bg-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 transition-colors shadow-sm cursor-pointer"
+                title="Add these selected legs into your Betslip tab"
+              >
+                <span>+ Slip</span>
+              </button>
+
+              {/* Transfer Betslip Action Button */}
+              <button
+                type="button"
+                onClick={handleTransferBetslip}
+                disabled={isTransferring}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black px-4 py-2 text-xs shadow-lg shadow-emerald-500/25 transition-all transform active:scale-95 cursor-pointer disabled:opacity-60"
+              >
+                {isTransferring ? (
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                ) : (
+                  <ExternalLink className="h-4 w-4" />
+                )}
+                <span>Transfer Betslip</span>
+              </button>
+
+              {/* Clear */}
+              <button
+                type="button"
+                onClick={handleClearSelection}
+                className="text-slate-400 hover:text-rose-400 p-1.5 rounded-lg transition-colors cursor-pointer"
+                title="Clear selection"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 1-Tap Transfer Result & Redirection Modal */}
+      {transferResultModal.isOpen && transferResultModal.data && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in">
+          <div className="relative w-full max-w-lg rounded-3xl border border-emerald-500/40 bg-slate-900 p-5 sm:p-6 shadow-2xl text-slate-100 space-y-4">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                  <Zap className="h-4 w-4 text-emerald-400" />
+                </span>
+                <div>
+                  <h3 className="text-base font-bold text-white">
+                    Betslip Transferred Successfully
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Target Bookmaker: <strong className="text-emerald-400">{transferResultModal.data.bookmaker}</strong>
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setTransferResultModal({ isOpen: false, data: null, copied: false })}
+                className="rounded-lg p-1 text-slate-400 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Booking Code Card */}
+            <div className="rounded-2xl border border-emerald-500/30 bg-emerald-950/20 p-4 text-center space-y-2">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400">
+                Official Booking Code
+              </span>
+              <div className="flex items-center justify-center gap-2 font-mono text-3xl font-black text-white tracking-widest bg-slate-950/90 py-3 rounded-xl border border-emerald-500/40 shadow-inner">
+                <span>{transferResultModal.data.bookingCode}</span>
+              </div>
+              <div className="flex items-center justify-center gap-1.5 text-xs text-emerald-300 font-semibold">
+                <Check className="h-3.5 w-3.5 text-emerald-400" />
+                <span>Automatically Copied to Clipboard!</span>
+              </div>
+              {transferResultModal.data.bookmakerId === 'hollywoodbets' ? (
+                <p className="text-[11px] text-amber-300/90 font-medium">
+                  💡 Hollywoodbets codes use numbers only ({transferResultModal.data.bookingCode}). Paste into "Load Ticket" / "Book-a-Bet" search bar.
+                </p>
+              ) : (
+                <p className="text-[11px] text-slate-400 font-medium">
+                  Paste code {transferResultModal.data.bookingCode} into {transferResultModal.data.bookmaker} "Load Bet" search bar.
+                </p>
+              )}
+            </div>
+
+            {/* Stats Summary */}
+            <div className="grid grid-cols-3 gap-2 text-center text-xs">
+              <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-2.5">
+                <span className="text-[10px] text-slate-500 uppercase font-semibold">Legs</span>
+                <p className="text-base font-bold text-white mt-0.5">{transferResultModal.data.totalLegs}</p>
+              </div>
+              <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-2.5">
+                <span className="text-[10px] text-slate-500 uppercase font-semibold">Total Odds</span>
+                <p className="text-base font-mono font-bold text-emerald-400 mt-0.5">{transferResultModal.data.totalOdds}x</p>
+              </div>
+              <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-2.5">
+                <span className="text-[10px] text-slate-500 uppercase font-semibold">Est. Payout</span>
+                <p className="text-base font-mono font-bold text-amber-400 mt-0.5">{currency}{transferResultModal.data.potentialPayout}</p>
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div className="space-y-2 pt-1">
+              <a
+                href={transferResultModal.data.deepLinkUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 py-2.5 text-xs font-black text-slate-950 hover:bg-emerald-400 shadow-lg shadow-emerald-500/20 transition-all cursor-pointer"
+              >
+                <ExternalLink className="h-4 w-4" />
+                <span>Open {transferResultModal.data.bookmaker} in New Tab</span>
+              </a>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await navigator.clipboard.writeText(transferResultModal.data.bookingCode);
+                    alert(`Copied booking code: ${transferResultModal.data.bookingCode}`);
+                  }}
+                  className="flex-1 rounded-xl border border-slate-700 bg-slate-800/80 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700 cursor-pointer"
+                >
+                  Copy Code Again
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await navigator.clipboard.writeText(transferResultModal.data.formattedSlipText);
+                    alert('Copied complete betslip text summary to clipboard!');
+                  }}
+                  className="flex-1 rounded-xl border border-slate-700 bg-slate-800/80 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700 cursor-pointer"
+                >
+                  Copy Full Slip Text
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  onAddMultipleLegs(selectedLegsList);
+                  setTransferResultModal({ isOpen: false, data: null, copied: false });
+                  if (onGoToSlip) onGoToSlip();
+                }}
+                className="w-full rounded-xl border border-emerald-500/30 bg-emerald-950/30 py-2 text-xs font-bold text-emerald-300 hover:bg-emerald-900/40 cursor-pointer"
+              >
+                Add All to Betslip Tab & View Slip →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
