@@ -1,74 +1,33 @@
 import React from 'react';
-import { Camera, Receipt, PlusCircle, Calendar, Sparkles, ShieldCheck, Zap, Flame } from 'lucide-react';
+import { Receipt, PlusCircle, Sparkles, Flame, Settings } from 'lucide-react';
+
+export type AppTab = 'formula' | 'bankers' | 'slip' | 'builder';
+
+export const NAV_ITEMS: Array<{ id: AppTab; label: string; desktopLabel: string; icon: React.FC<{ className?: string }> }> = [
+  { id: 'formula', label: '87% Formula', desktopLabel: '87% Formula', icon: Flame },
+  { id: 'bankers', label: 'Bankers', desktopLabel: 'AI Bankers', icon: Sparkles },
+  { id: 'slip', label: 'Betslip', desktopLabel: 'Betslip', icon: Receipt },
+  { id: 'builder', label: '+ Leg', desktopLabel: '+ Leg', icon: PlusCircle },
+];
 
 interface HeaderProps {
-  activeTab: 'formula' | 'upcoming' | 'slip' | 'builder' | 'ocr';
-  setActiveTab: (tab: 'formula' | 'upcoming' | 'slip' | 'builder' | 'ocr') => void;
+  activeTab: AppTab;
+  setActiveTab: (tab: AppTab) => void;
   slipCount: number;
-  detectedBookmaker: string;
-  currency: string;
-  setCurrency: (c: string) => void;
-  onOpenSaaS: () => void;
+  onOpenSettings: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({
-  activeTab,
-  setActiveTab,
-  slipCount,
-  detectedBookmaker,
-  currency,
-  setCurrency,
-  onOpenSaaS,
-}) => {
+export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, slipCount, onOpenSettings }) => {
   return (
     <header className="sticky top-0 z-40 w-full border-b border-slate-800 bg-[#0d1527]/95 backdrop-blur-md">
-      {/* Top micro bar for status & currency */}
-      <div className="border-b border-slate-800/80 bg-slate-950/70 px-3 py-1.5 text-xs text-slate-400">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-[11px] truncate">
-            <span className="flex h-2 w-2 shrink-0 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="font-bold text-emerald-400">87% Mathematical Formula</span>
-            <span className="text-slate-600">•</span>
-            <span className="text-amber-400 font-semibold bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.2 rounded text-[10px]">
-              Over 1.5 Goals Strategy (Linemaker)
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2 shrink-0">
-            <a
-              href="/api/download-netlify-zip"
-              download="Netlify-Deploy.zip"
-              title="Download 1-click Netlify Drop ready zip"
-              className="inline-flex items-center gap-1 rounded bg-teal-500/15 border border-teal-500/35 px-2 py-0.5 text-[10px] font-bold text-teal-300 hover:bg-teal-500/25 transition-colors"
-            >
-              <span>🚀 Netlify Zip</span>
-            </a>
-            <button
-              onClick={onOpenSaaS}
-              className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 transition-colors"
-            >
-              <Sparkles className="h-3 w-3" />
-              <span className="hidden xs:inline">SaaS</span>
-            </button>
-            <div className="flex items-center gap-1 border-l border-slate-800 pl-2">
-              <select
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value)}
-                className="rounded bg-slate-900 border border-slate-700/80 px-1 py-0.5 text-[11px] font-semibold text-slate-200 outline-none focus:border-emerald-500"
-              >
-                <option value="R">R (ZAR)</option>
-                <option value="$">$ (USD)</option>
-                <option value="€">€ (EUR)</option>
-                <option value="£">£ (GBP)</option>
-              </select>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Main navigation header */}
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-3 py-2.5 sm:px-6 sm:py-3">
-        <div className="flex items-center gap-2.5 min-w-0">
+      <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-3 py-2.5 sm:px-6 sm:py-3">
+        {/* Brand */}
+        <button
+          type="button"
+          onClick={() => setActiveTab('formula')}
+          className="flex items-center gap-2.5 min-w-0 text-left"
+          aria-label="Football Analyzer Pro home"
+        >
           <div className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 text-slate-950 shadow-md shadow-emerald-500/20 font-black text-base">
             ⚡
           </div>
@@ -77,108 +36,97 @@ export const Header: React.FC<HeaderProps> = ({
               <h1 className="text-sm sm:text-base font-bold tracking-tight text-white leading-none truncate">
                 Football Analyzer Pro
               </h1>
-              <span className="rounded bg-emerald-500/15 border border-emerald-500/40 px-1.5 py-0.2 text-[9px] font-bold text-emerald-400 uppercase shrink-0">
+              <span className="rounded bg-emerald-500/15 border border-emerald-500/40 px-1.5 py-0.5 text-[9px] font-bold text-emerald-400 uppercase shrink-0 leading-none">
                 87% Formula
               </span>
             </div>
-            <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mt-0.5">
-              <span>Slip Export:</span>
-              <span className="font-semibold text-amber-300 bg-amber-500/10 px-1.5 py-0.2 rounded border border-amber-500/20 text-[10px] truncate max-w-[120px] sm:max-w-none">
-                {detectedBookmaker || 'Hollywoodbets'}
-              </span>
-            </div>
+            <p className="text-[11px] text-slate-400 mt-1 truncate">
+              Independent mathematical football analysis
+            </p>
           </div>
-        </div>
-
-        {/* Tab buttons (Desktop only, mobile uses fixed bottom navigation bar) */}
-        <nav className="hidden sm:flex items-center gap-1.5">
-          <button
-            onClick={() => setActiveTab('formula')}
-            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
-              activeTab === 'formula'
-                ? 'bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 shadow-md shadow-emerald-500/25 font-bold'
-                : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
-            }`}
-          >
-            <Flame className="h-4 w-4 text-emerald-400" />
-            <span>⚡ 87% Formula</span>
-            <span className="rounded bg-emerald-500/20 text-emerald-300 px-1 py-0.2 text-[9px] font-extrabold uppercase">
-              Linemaker
-            </span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('upcoming')}
-            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
-              activeTab === 'upcoming'
-                ? 'bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 shadow-md shadow-emerald-500/25 font-bold'
-                : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
-            }`}
-          >
-            <Sparkles className="h-4 w-4 text-emerald-400" />
-            <span>Multi-Sport Bankers</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('slip')}
-            className={`relative inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
-              activeTab === 'slip'
-                ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/25 font-bold'
-                : 'bg-slate-800 text-slate-100 hover:bg-slate-700/80'
-            }`}
-          >
-            <Receipt className="h-4 w-4" />
-            <span>Betslip / Acca</span>
-            {slipCount > 0 && (
-              <span
-                className={`ml-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold ${
-                  activeTab === 'slip' ? 'bg-slate-950 text-emerald-400' : 'bg-emerald-500 text-slate-950'
-                }`}
-              >
-                {slipCount}
-              </span>
-            )}
-          </button>
-
-          <button
-            onClick={() => setActiveTab('builder')}
-            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
-              activeTab === 'builder'
-                ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/25 font-bold'
-                : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
-            }`}
-          >
-            <PlusCircle className="h-4 w-4" />
-            <span>Create Leg</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('ocr')}
-            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
-              activeTab === 'ocr'
-                ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/25 font-bold'
-                : 'text-slate-400 hover:bg-slate-800/80 hover:text-slate-200'
-            }`}
-          >
-            <Camera className="h-4 w-4" />
-            <span>Legacy OCR</span>
-          </button>
-        </nav>
-
-        {/* Quick mobile betslip pill */}
-        <button
-          onClick={() => setActiveTab('slip')}
-          className="flex sm:hidden items-center gap-1 rounded-lg bg-slate-800 border border-slate-700 px-2.5 py-1.5 text-xs font-bold text-slate-100"
-        >
-          <Receipt className="h-3.5 w-3.5 text-emerald-400" />
-          <span>Slip</span>
-          {slipCount > 0 && (
-            <span className="rounded-full bg-emerald-500 px-1 text-[10px] font-black text-slate-950">
-              {slipCount}
-            </span>
-          )}
         </button>
+
+        <div className="flex items-center gap-1.5">
+          {/* Desktop navigation (mobile uses the fixed bottom bar) */}
+          <nav className="hidden sm:flex items-center gap-1" aria-label="Main">
+            {NAV_ITEMS.map(({ id, desktopLabel, icon: Icon }) => {
+              const isActive = activeTab === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setActiveTab(id)}
+                  aria-current={isActive ? 'page' : undefined}
+                  className={`relative inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
+                    isActive
+                      ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/25 font-bold'
+                      : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                  <span>{desktopLabel}</span>
+                  {id === 'slip' && slipCount > 0 && (
+                    <span
+                      className={`ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold ${
+                        isActive ? 'bg-slate-950 text-emerald-400' : 'bg-emerald-500 text-slate-950'
+                      }`}
+                    >
+                      {slipCount}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </nav>
+
+          <button
+            type="button"
+            onClick={onOpenSettings}
+            className="rounded-lg border border-slate-700/80 bg-slate-900 p-2 text-slate-300 hover:text-white hover:border-slate-600 transition-colors"
+            aria-label="Settings and export"
+            title="Settings & export"
+          >
+            <Settings className="h-4 w-4" />
+          </button>
+        </div>
       </div>
     </header>
   );
 };
+
+interface BottomNavProps {
+  activeTab: AppTab;
+  setActiveTab: (tab: AppTab) => void;
+  slipCount: number;
+}
+
+export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab, slipCount }) => (
+  <nav
+    aria-label="Main"
+    className="fixed bottom-0 left-0 right-0 z-40 grid grid-cols-4 sm:hidden border-t border-slate-800 bg-[#0d1527]/95 px-1 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] backdrop-blur-lg"
+  >
+    {NAV_ITEMS.map(({ id, label, icon: Icon }) => {
+      const isActive = activeTab === id;
+      return (
+        <button
+          key={id}
+          type="button"
+          onClick={() => setActiveTab(id)}
+          aria-current={isActive ? 'page' : undefined}
+          className={`relative flex flex-col items-center gap-0.5 rounded-xl py-1.5 text-[11px] transition-colors ${
+            isActive ? 'text-emerald-400 font-bold' : 'text-slate-400 font-semibold'
+          }`}
+        >
+          <Icon className="h-5 w-5" />
+          <span>{label}</span>
+          {id === 'slip' && slipCount > 0 && (
+            <span className="absolute top-0 left-1/2 ml-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-500 px-1 text-[9px] font-black text-slate-950">
+              {slipCount}
+            </span>
+          )}
+          {isActive && <span className="absolute -top-1.5 h-0.5 w-8 rounded-full bg-emerald-400" />}
+        </button>
+      );
+    })}
+  </nav>
+);

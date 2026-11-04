@@ -679,7 +679,7 @@ export const Formula87Scanner: React.FC<Formula87ScannerProps> = ({
             </div>
 
             <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-              Stop Fighting OCR — Scan Matches With The 87% Formula
+              Independent Mathematical Football Analysis
             </h2>
             <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
               Based on the proven Linemaker Sports methodology. Instead of volatile match-winners, we isolate the Over 1.5 Goals market using four strict mathematical filters to identify games with an 87% empirical hit rate and a positive edge over bookmaker odds.

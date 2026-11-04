@@ -447,7 +447,7 @@ export const UpcomingMatches: React.FC<UpcomingMatchesProps> = ({
                 </span>
               </div>
               <div className="text-[11px] text-slate-400">
-                Stop fighting OCR: scan matches against the 4 statistical filters with +EV mathematical edge.
+                Check upcoming matches against the four statistical filters of the 87% Formula.
               </div>
             </div>
           </div>

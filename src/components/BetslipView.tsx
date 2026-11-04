@@ -31,7 +31,10 @@ import {
   MultiLegPreset,
   MultiLegStrategy,
 } from '../types/betslip';
-import { BOOKMAKERS, UPCOMING_MATCHES } from '../data/mockFixtures';
+import { BOOKMAKERS } from '../data/mockFixtures';
+
+// No bundled fixture list: auto-fill never invents matches.
+const UPCOMING_MATCHES: Array<{ homeTeam: string; awayTeam: string; league: string; kickoff: string; odds: { home: number; away: number } }> = [];
 
 interface BetslipViewProps {
   legs: MatchLeg[];
@@ -383,7 +386,7 @@ export const BetslipView: React.FC<BetslipViewProps> = ({
         <div>
           <h3 className="text-base font-bold text-white">Your betslip is currently empty</h3>
           <p className="mt-1 text-xs sm:text-sm text-slate-400 max-w-sm mx-auto">
-            Scan a screenshot from any bookmaker, pick from daily upcoming matches, or manually add your custom legs.
+            Pick qualifying matches from the 87% Formula, add AI Bankers, or enter your own legs manually.
           </p>
         </div>
         <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
@@ -391,7 +394,7 @@ export const BetslipView: React.FC<BetslipViewProps> = ({
             onClick={onGoToScanner}
             className="rounded-xl bg-emerald-500 px-4 py-2 text-xs font-bold text-slate-950 hover:bg-emerald-400"
           >
-            Scan Screenshot
+            Open 87% Formula
           </button>
           <button
             onClick={onGoToBuilder}

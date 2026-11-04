@@ -117,7 +117,7 @@ export const SaaSHubModal: React.FC<SaaSHubModalProps> = ({
               </span>
             </div>
             <p className="text-xs text-slate-400 mt-0.5">
-              Turn your betslip OCR tool into a high-converting sports betting SaaS product.
+              Currency, slip export and payout comparison tools.
             </p>
           </div>
         </div>
@@ -216,7 +216,7 @@ export const SaaSHubModal: React.FC<SaaSHubModalProps> = ({
               <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-3 space-y-2">
                 <div className="font-bold text-slate-200">Free Tier</div>
                 <ul className="space-y-1 text-slate-400 text-[11px]">
-                  <li>✓ 5 OCR scans per day</li>
+                  <li>✓ 87% Formula match analysis</li>
                   <li>✓ Daily upcoming matches</li>
                   <li>✓ WhatsApp slip sharing</li>
                 </ul>
@@ -224,7 +224,7 @@ export const SaaSHubModal: React.FC<SaaSHubModalProps> = ({
               <div className="rounded-xl border border-emerald-500/40 bg-emerald-950/30 p-3 space-y-2">
                 <div className="font-bold text-emerald-300">Pro Tipster (SaaS)</div>
                 <ul className="space-y-1 text-slate-300 text-[11px]">
-                  <li>✓ Unlimited batch OCR processing</li>
+                  <li>✓ AI Bankers search</li>
                   <li>✓ Multi-bookmaker odds arbitrage</li>
                   <li>✓ Custom booking code generation</li>
                   <li>✓ Excel & JSON automated export</li>

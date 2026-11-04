@@ -1,6 +1,8 @@
 {
-  "name": "Football Betslip OCR & Analyzer Pro",
-  "description": "Next-gen sports betting OCR scanner supporting all bookmakers, multi-layout slip extraction, custom leg builder, daily upcoming matches, and bookmaker slip transfer.",
+  "name": "Football Analyzer Pro",
+  "description": "Independent mathematical football analysis: the 87% Formula Over 1.5 Goals filter, AI Bankers search, manual leg entry and an accumulator betslip calculator. Not a bookmaker.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }
