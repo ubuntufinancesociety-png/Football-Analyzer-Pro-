@@ -4,15 +4,13 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Header } from './components/Header';
+import { Header, BottomNav, AppTab } from './components/Header';
 import { Formula87Scanner } from './components/Formula87Scanner';
-import { OcrScanner } from './components/OcrScanner';
 import { LegBuilder } from './components/LegBuilder';
 import { UpcomingMatches } from './components/UpcomingMatches';
 import { BetslipView } from './components/BetslipView';
 import { SaaSHubModal } from './components/SaaSHubModal';
 import { MatchLeg } from './types/betslip';
-import { Camera, Calendar, PlusCircle, Receipt, Sparkles, Flame, Zap } from 'lucide-react';
 
 const INITIAL_DEMO_LEGS: MatchLeg[] = [
   {
@@ -27,7 +25,7 @@ const INITIAL_DEMO_LEGS: MatchLeg[] = [
     kickoff: 'Today 20:00',
     source: 'upcoming',
     active: true,
-    notes: '⚡ 87% Formula Certified (+7.0% EV Edge, Combined 3.45 G/M)',
+    notes: '87% Formula qualifier (+7.0% EV Edge, Combined 3.45 G/M)',
   },
   {
     id: 'demo_leg_2',
@@ -41,7 +39,7 @@ const INITIAL_DEMO_LEGS: MatchLeg[] = [
     kickoff: 'Today 21:00',
     source: 'upcoming',
     active: true,
-    notes: '⚡ 87% Formula Certified (+8.9% EV Edge, Combined 3.20 G/M)',
+    notes: '87% Formula qualifier (+8.9% EV Edge, Combined 3.20 G/M)',
   },
   {
     id: 'demo_leg_3',
@@ -55,12 +53,12 @@ const INITIAL_DEMO_LEGS: MatchLeg[] = [
     kickoff: 'Tomorrow 18:30',
     source: 'upcoming',
     active: true,
-    notes: '⚡ 87% Formula Certified (+5.1% EV Edge, Combined 3.80 G/M)',
+    notes: '87% Formula qualifier (+5.1% EV Edge, Combined 3.80 G/M)',
   },
 ];
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'formula' | 'upcoming' | 'builder' | 'slip' | 'ocr'>('formula');
+  const [activeTab, setActiveTab] = useState<AppTab>('formula');
   const [legs, setLegs] = useState<MatchLeg[]>(() => {
     try {
       const saved = localStorage.getItem('fap_betslip_v2');
@@ -106,7 +104,7 @@ export default function App() {
     return 'R';
   });
 
-  const [detectedBookmaker, setDetectedBookmaker] = useState<string>('Hollywoodbets');
+  const detectedBookmaker = 'Hollywoodbets';
   const [isSaaSHubOpen, setIsSaaSHubOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -206,10 +204,7 @@ export default function App() {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         slipCount={activeLegCount}
-        detectedBookmaker={detectedBookmaker}
-        currency={currency}
-        setCurrency={setCurrency}
-        onOpenSaaS={() => setIsSaaSHubOpen(true)}
+        onOpenSettings={() => setIsSaaSHubOpen(true)}
       />
 
       {/* Main Content Area */}
@@ -223,7 +218,7 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'upcoming' && (
+        {activeTab === 'bankers' && (
           <UpcomingMatches
             onAddLeg={handleAddLeg}
             onAddMultipleLegs={handleAddMultipleLegs}
@@ -261,17 +256,6 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'ocr' && (
-          <OcrScanner
-            onAddLeg={handleAddLeg}
-            onAddMultipleLegs={handleAddMultipleLegs}
-            detectedBookmaker={detectedBookmaker}
-            setDetectedBookmaker={setDetectedBookmaker}
-            currency={currency}
-            stake={stake}
-            onGoToSlip={() => setActiveTab('slip')}
-          />
-        )}
       </main>
 
       {/* Floating Toast Notification */}
@@ -281,63 +265,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Mobile Fixed Bottom Navigation Bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 flex sm:hidden border-t border-slate-800 bg-[#0d1527]/95 px-1 py-1.5 backdrop-blur-lg justify-around">
-        <button
-          onClick={() => setActiveTab('formula')}
-          className={`flex flex-col items-center gap-0.5 rounded-xl px-2 py-1 text-[10px] font-semibold transition-colors ${
-            activeTab === 'formula' ? 'text-emerald-400 font-bold' : 'text-slate-400'
-          }`}
-        >
-          <Flame className="h-4 w-4" />
-          <span>87% Formula</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('upcoming')}
-          className={`flex flex-col items-center gap-0.5 rounded-xl px-2 py-1 text-[10px] font-semibold transition-colors ${
-            activeTab === 'upcoming' ? 'text-emerald-400 font-bold' : 'text-slate-400'
-          }`}
-        >
-          <Sparkles className="h-4 w-4" />
-          <span>Bankers</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('slip')}
-          className={`relative flex flex-col items-center gap-0.5 rounded-xl px-2 py-1 text-[10px] font-semibold transition-colors ${
-            activeTab === 'slip' ? 'text-emerald-400 font-bold' : 'text-slate-400'
-          }`}
-        >
-          <Receipt className="h-4 w-4" />
-          <span>Betslip</span>
-          {activeLegCount > 0 && (
-            <span className="absolute top-0.5 right-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-emerald-500 px-0.5 text-[8px] font-black text-slate-950">
-              {activeLegCount}
-            </span>
-          )}
-        </button>
-
-        <button
-          onClick={() => setActiveTab('builder')}
-          className={`flex flex-col items-center gap-0.5 rounded-xl px-2 py-1 text-[10px] font-semibold transition-colors ${
-            activeTab === 'builder' ? 'text-emerald-400 font-bold' : 'text-slate-400'
-          }`}
-        >
-          <PlusCircle className="h-4 w-4" />
-          <span>+ Leg</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('ocr')}
-          className={`flex flex-col items-center gap-0.5 rounded-xl px-2 py-1 text-[10px] font-semibold transition-colors ${
-            activeTab === 'ocr' ? 'text-emerald-400 font-bold' : 'text-slate-400'
-          }`}
-        >
-          <Camera className="h-4 w-4" />
-          <span>OCR</span>
-        </button>
-      </div>
+      <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} slipCount={activeLegCount} />
 
       {/* Footer & Independent Platform Disclaimer */}
       <footer className="mt-auto border-t border-slate-800/80 bg-slate-950/80 py-6 text-center text-xs text-slate-400">
@@ -352,7 +280,7 @@ export default function App() {
             </span>
           </div>
           <p className="text-slate-400 text-[11px] leading-relaxed max-w-2xl mx-auto">
-            This application is an educational & statistical analysis tool. We are NOT a bookmaker, gambling operator, or sports betting service. We do not accept bets, stake money, or execute wagers. All banker conviction scores and odds are algorithmic projections.
+            This application is an educational & statistical analysis tool. We are NOT a bookmaker, gambling operator, or sports betting service. We do not accept bets, stake money, or execute wagers. Banker conviction scores and formula outputs are statistical projections, not guarantees, and the 87% Formula name is not a verified success rate.
           </p>
           <p className="text-slate-400 text-[10px]">
             18+ Only. Gamble responsibly. South African Responsible Gambling Helpline: 0800 006 008. UK: 0808 8020 133.

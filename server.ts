@@ -1,6 +1,5 @@
 import express from 'express';
 import path from 'path';
-import fs from 'fs';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
@@ -35,7 +34,7 @@ if (GEMINI_API_KEY) {
   console.warn('[Warning] GEMINI_API_KEY is not defined. Using dynamic analytical generator.');
 }
 
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({ limit: '1mb' }));
 
 // 1. Health check endpoint
 app.get('/health', (_req, res) => {
@@ -971,6 +970,8 @@ app.post('/api/formula/scan-matches', (req, res) => {
     return res.status(200).json({
       success: true,
       system: 'Linemaker Sports 87% Mathematical Edge Filter (Over 1.5 Goals)',
+      // This endpoint serves a static, pre-compiled fixture list (not a live data feed).
+      source: 'static-sample',
       timestamp: new Date().toISOString(),
       timeframe,
       count: matches.length,
@@ -1052,56 +1053,7 @@ app.post('/api/betslip/generate-code', (req, res) => {
   }
 });
 
-// 5. Backwards-compatible OCR route for existing scanner (safe, never crashes)
-app.post('/api/ocr/parse-betslip', async (req, res) => {
-  return res.status(200).json({
-    success: true,
-    matches: [
-      {
-        id: `ocr-${Date.now()}-1`,
-        matchTitle: 'Arsenal vs Chelsea',
-        homeTeam: 'Arsenal',
-        awayTeam: 'Chelsea',
-        league: 'English Premier League',
-        kickoff: 'Today 20:00',
-        odds: { home: 1.88, draw: 3.6, away: 4.1 },
-        recommendedPick: 'Arsenal to Win (1)',
-        market: '1X2',
-        confidence: 94,
-      },
-    ],
-    detectedBookmaker: 'Hollywoodbets',
-    detectedLayout: 'Grid Slip',
-  });
-});
-
-app.post('/api/ocr/analyze', async (req, res) => {
-  return res.status(200).json({
-    success: true,
-    source: 'gemini-vision',
-    matches: [],
-  });
-});
-
-// Download updated project zip for Netlify or offline export
-app.get('/api/download-zip', (_req, res) => {
-  const zipPath = path.resolve(__dirname, 'Football-Analyzer-Pro-Updated.zip');
-  if (fs.existsSync(zipPath)) {
-    return res.download(zipPath, 'Football-Analyzer-Pro-Updated.zip');
-  }
-  return res.status(404).json({ success: false, error: 'Zip bundle not found.' });
-});
-
-// Download ready-to-upload Netlify Drop bundle (dist files at zip root)
-app.get('/api/download-netlify-zip', (_req, res) => {
-  const netlifyZipPath = path.resolve(__dirname, 'Netlify-Deploy.zip');
-  if (fs.existsSync(netlifyZipPath)) {
-    return res.download(netlifyZipPath, 'Netlify-Deploy.zip');
-  }
-  return res.status(404).json({ success: false, error: 'Netlify deploy package not found.' });
-});
-
-// 6. Setup Vite Middleware in Dev or serve dist in Production
+// 5. Setup Vite Middleware in Dev or serve dist in Production
 async function setupServer() {
   if (NODE_ENV !== 'production') {
     console.log('[Server] Initializing Vite middleware in development mode...');
