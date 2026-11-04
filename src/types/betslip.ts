@@ -183,3 +183,30 @@ export interface AnalyzedBankerMatch {
   selectionReason?: string;
 }
 
+export interface Formula87Match {
+  id: string;
+  league: string;
+  country?: string;
+  homeTeam: string;
+  awayTeam: string;
+  matchTitle: string;
+  kickoff: string;
+  timeframe: 'today' | 'tomorrow' | 'weekend';
+  market: string; // "Over 1.5 Goals"
+  recommendedPick: string; // "Over 1.5 Goals"
+  odds: number; // e.g. 1.28
+  impliedProbability: number; // (1 / odds) * 100
+  trueProbability: number; // 87.0
+  mathematicalEdge: number; // 87.0 - impliedProbability
+  combinedGoalAvg: number; // Goal average of both teams (>= 2.40)
+  h2hOver15Rate: number; // % of H2H matches clearing 1.5 goals (>= 80%)
+  teamAScoredLast5: number; // Scored in X of last 5
+  teamBScoredLast5: number; // Scored in X of last 5
+  shutoutsA: number; // Number of scoreless games in last 5 (max 1 allowed)
+  shutoutsB: number; // Number of scoreless games in last 5 (max 1 allowed)
+  formulaPassed: boolean;
+  statusBadge: string;
+  aiTacticalAnalysis: string;
+  h2hDetails: string;
+}
+

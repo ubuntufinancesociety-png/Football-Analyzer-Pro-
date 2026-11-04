@@ -1,0 +1,26 @@
+[build]
+  publish = "dist"
+  command = "npm run build"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# Optional: route /api requests to the live backend server if needed
+[[redirects]]
+  from = "/api/*"
+  to = "https://ais-dev-jxkrvhd7qgifiimhmboa2q-871085439328.europe-west2.run.app/api/:splat"
+  status = 200
+  force = false
+
+# Single-Page Application (SPA) fallback: route all web routes to index.html
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"

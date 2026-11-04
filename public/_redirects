@@ -1,0 +1,3 @@
+# Netlify Single-Page Application (SPA) redirect rule
+/api/*  https://ais-dev-jxkrvhd7qgifiimhmboa2q-871085439328.europe-west2.run.app/api/:splat  200
+/*      /index.html                                                                        200

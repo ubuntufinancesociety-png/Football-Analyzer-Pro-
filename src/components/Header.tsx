@@ -1,9 +1,9 @@
 import React from 'react';
-import { Camera, Receipt, PlusCircle, Calendar, Sparkles, ShieldCheck } from 'lucide-react';
+import { Camera, Receipt, PlusCircle, Calendar, Sparkles, ShieldCheck, Zap, Flame } from 'lucide-react';
 
 interface HeaderProps {
-  activeTab: 'ocr' | 'slip' | 'builder' | 'upcoming';
-  setActiveTab: (tab: 'ocr' | 'slip' | 'builder' | 'upcoming') => void;
+  activeTab: 'formula' | 'upcoming' | 'slip' | 'builder' | 'ocr';
+  setActiveTab: (tab: 'formula' | 'upcoming' | 'slip' | 'builder' | 'ocr') => void;
   slipCount: number;
   detectedBookmaker: string;
   currency: string;
@@ -27,14 +27,22 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-[11px] truncate">
             <span className="flex h-2 w-2 shrink-0 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="font-bold text-emerald-400">Gemini Sports AI</span>
+            <span className="font-bold text-emerald-400">87% Mathematical Formula</span>
             <span className="text-slate-600">•</span>
             <span className="text-amber-400 font-semibold bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.2 rounded text-[10px]">
-              ⚠️ Analytical Tool (Not a Bookmaker)
+              Over 1.5 Goals Strategy (Linemaker)
             </span>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
+            <a
+              href="/api/download-netlify-zip"
+              download="Netlify-Deploy.zip"
+              title="Download 1-click Netlify Drop ready zip"
+              className="inline-flex items-center gap-1 rounded bg-teal-500/15 border border-teal-500/35 px-2 py-0.5 text-[10px] font-bold text-teal-300 hover:bg-teal-500/25 transition-colors"
+            >
+              <span>🚀 Netlify Zip</span>
+            </a>
             <button
               onClick={onOpenSaaS}
               className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 transition-colors"
@@ -62,7 +70,7 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="mx-auto flex max-w-6xl items-center justify-between px-3 py-2.5 sm:px-6 sm:py-3">
         <div className="flex items-center gap-2.5 min-w-0">
           <div className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 text-slate-950 shadow-md shadow-emerald-500/20 font-black text-base">
-            ⚽
+            ⚡
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
@@ -70,11 +78,11 @@ export const Header: React.FC<HeaderProps> = ({
                 Football Analyzer Pro
               </h1>
               <span className="rounded bg-emerald-500/15 border border-emerald-500/40 px-1.5 py-0.2 text-[9px] font-bold text-emerald-400 uppercase shrink-0">
-                AI Bankers
+                87% Formula
               </span>
             </div>
             <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mt-0.5">
-              <span>Export Slip Format:</span>
+              <span>Slip Export:</span>
               <span className="font-semibold text-amber-300 bg-amber-500/10 px-1.5 py-0.2 rounded border border-amber-500/20 text-[10px] truncate max-w-[120px] sm:max-w-none">
                 {detectedBookmaker || 'Hollywoodbets'}
               </span>
@@ -85,6 +93,21 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Tab buttons (Desktop only, mobile uses fixed bottom navigation bar) */}
         <nav className="hidden sm:flex items-center gap-1.5">
           <button
+            onClick={() => setActiveTab('formula')}
+            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
+              activeTab === 'formula'
+                ? 'bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 shadow-md shadow-emerald-500/25 font-bold'
+                : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+            }`}
+          >
+            <Flame className="h-4 w-4 text-emerald-400" />
+            <span>⚡ 87% Formula</span>
+            <span className="rounded bg-emerald-500/20 text-emerald-300 px-1 py-0.2 text-[9px] font-extrabold uppercase">
+              Linemaker
+            </span>
+          </button>
+
+          <button
             onClick={() => setActiveTab('upcoming')}
             className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
               activeTab === 'upcoming'
@@ -92,11 +115,8 @@ export const Header: React.FC<HeaderProps> = ({
                 : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
             }`}
           >
-            <Sparkles className="h-4 w-4 text-emerald-400 group-hover:text-white" />
-            <span>🔥 AI Match Bankers</span>
-            <span className="rounded bg-emerald-500/20 text-emerald-300 px-1 py-0.2 text-[9px] font-extrabold uppercase">
-              15 Live
-            </span>
+            <Sparkles className="h-4 w-4 text-emerald-400" />
+            <span>Multi-Sport Bankers</span>
           </button>
 
           <button
@@ -137,11 +157,11 @@ export const Header: React.FC<HeaderProps> = ({
             className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
               activeTab === 'ocr'
                 ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/25 font-bold'
-                : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                : 'text-slate-400 hover:bg-slate-800/80 hover:text-slate-200'
             }`}
           >
             <Camera className="h-4 w-4" />
-            <span>OCR Scanner</span>
+            <span>Legacy OCR</span>
           </button>
         </nav>
 

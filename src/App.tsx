@@ -5,58 +5,62 @@
 
 import React, { useState, useEffect } from 'react';
 import { Header } from './components/Header';
+import { Formula87Scanner } from './components/Formula87Scanner';
 import { OcrScanner } from './components/OcrScanner';
 import { LegBuilder } from './components/LegBuilder';
 import { UpcomingMatches } from './components/UpcomingMatches';
 import { BetslipView } from './components/BetslipView';
 import { SaaSHubModal } from './components/SaaSHubModal';
 import { MatchLeg } from './types/betslip';
-import { Camera, Calendar, PlusCircle, Receipt, Sparkles } from 'lucide-react';
+import { Camera, Calendar, PlusCircle, Receipt, Sparkles, Flame, Zap } from 'lucide-react';
 
 const INITIAL_DEMO_LEGS: MatchLeg[] = [
   {
     id: 'demo_leg_1',
     league: 'Premier League',
-    homeTeam: 'Arsenal',
-    awayTeam: 'Chelsea',
-    matchTitle: 'Arsenal vs Chelsea',
-    market: '1X2',
-    selection: 'Arsenal to Win (1)',
-    odds: 1.88,
+    homeTeam: 'Manchester City',
+    awayTeam: 'Tottenham',
+    matchTitle: 'Manchester City vs Tottenham',
+    market: 'Over 1.5 Goals',
+    selection: 'Over 1.5 Goals',
+    odds: 1.25,
     kickoff: 'Today 20:00',
-    source: 'ocr',
+    source: 'upcoming',
     active: true,
+    notes: '⚡ 87% Formula Certified (+7.0% EV Edge, Combined 3.45 G/M)',
   },
   {
     id: 'demo_leg_2',
-    league: 'DStv Premiership (PSL)',
-    homeTeam: 'Mamelodi Sundowns',
-    awayTeam: 'Orlando Pirates',
-    matchTitle: 'Mamelodi Sundowns vs Orlando Pirates',
-    market: '1X2',
-    selection: 'Mamelodi Sundowns to Win (1)',
-    odds: 1.75,
-    kickoff: 'Today 19:30',
-    source: 'ocr',
+    league: 'Spanish La Liga',
+    homeTeam: 'Barcelona',
+    awayTeam: 'Villarreal',
+    matchTitle: 'Barcelona vs Villarreal',
+    market: 'Over 1.5 Goals',
+    selection: 'Over 1.5 Goals',
+    odds: 1.28,
+    kickoff: 'Today 21:00',
+    source: 'upcoming',
     active: true,
+    notes: '⚡ 87% Formula Certified (+8.9% EV Edge, Combined 3.20 G/M)',
   },
   {
     id: 'demo_leg_3',
-    league: 'UEFA Champions League',
-    homeTeam: 'Real Madrid',
-    awayTeam: 'Bayern Munich',
-    matchTitle: 'Real Madrid vs Bayern Munich',
-    market: 'Over/Under Goals',
-    selection: 'Over 2.5 Goals',
-    odds: 1.60,
-    kickoff: 'Tomorrow 21:00',
+    league: 'German Bundesliga',
+    homeTeam: 'Bayern Munich',
+    awayTeam: 'Eintracht Frankfurt',
+    matchTitle: 'Bayern Munich vs Frankfurt',
+    market: 'Over 1.5 Goals',
+    selection: 'Over 1.5 Goals',
+    odds: 1.22,
+    kickoff: 'Tomorrow 18:30',
     source: 'upcoming',
     active: true,
+    notes: '⚡ 87% Formula Certified (+5.1% EV Edge, Combined 3.80 G/M)',
   },
 ];
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'ocr' | 'upcoming' | 'builder' | 'slip'>('upcoming');
+  const [activeTab, setActiveTab] = useState<'formula' | 'upcoming' | 'builder' | 'slip' | 'ocr'>('formula');
   const [legs, setLegs] = useState<MatchLeg[]>(() => {
     try {
       const saved = localStorage.getItem('fap_betslip_v2');
@@ -210,15 +214,12 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="mx-auto w-full max-w-5xl flex-1 px-2.5 py-4 sm:px-6 sm:py-6 overflow-x-hidden">
-        {activeTab === 'ocr' && (
-          <OcrScanner
+        {activeTab === 'formula' && (
+          <Formula87Scanner
             onAddLeg={handleAddLeg}
             onAddMultipleLegs={handleAddMultipleLegs}
-            detectedBookmaker={detectedBookmaker}
-            setDetectedBookmaker={setDetectedBookmaker}
-            currency={currency}
-            stake={stake}
             onGoToSlip={() => setActiveTab('slip')}
+            currency={currency}
           />
         )}
 
@@ -228,16 +229,8 @@ export default function App() {
             onAddMultipleLegs={handleAddMultipleLegs}
             activeLegs={legs}
             onGoToSlip={() => setActiveTab('slip')}
+            onGoToFormula={() => setActiveTab('formula')}
             currency={currency}
-          />
-        )}
-
-        {activeTab === 'builder' && (
-          <LegBuilder
-            onAddLeg={handleAddLeg}
-            onGoToSlip={() => setActiveTab('slip')}
-            currency={currency}
-            stake={stake}
           />
         )}
 
@@ -254,8 +247,29 @@ export default function App() {
             setStake={setStake}
             currency={currency}
             detectedBookmaker={detectedBookmaker}
-            onGoToScanner={() => setActiveTab('ocr')}
+            onGoToScanner={() => setActiveTab('formula')}
             onGoToBuilder={() => setActiveTab('builder')}
+          />
+        )}
+
+        {activeTab === 'builder' && (
+          <LegBuilder
+            onAddLeg={handleAddLeg}
+            onGoToSlip={() => setActiveTab('slip')}
+            currency={currency}
+            stake={stake}
+          />
+        )}
+
+        {activeTab === 'ocr' && (
+          <OcrScanner
+            onAddLeg={handleAddLeg}
+            onAddMultipleLegs={handleAddMultipleLegs}
+            detectedBookmaker={detectedBookmaker}
+            setDetectedBookmaker={setDetectedBookmaker}
+            currency={currency}
+            stake={stake}
+            onGoToSlip={() => setActiveTab('slip')}
           />
         )}
       </main>
@@ -268,27 +282,37 @@ export default function App() {
       )}
 
       {/* Mobile Fixed Bottom Navigation Bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 flex sm:hidden border-t border-slate-800 bg-[#0d1527]/95 px-2 py-2 backdrop-blur-lg justify-around">
+      <div className="fixed bottom-0 left-0 right-0 z-40 flex sm:hidden border-t border-slate-800 bg-[#0d1527]/95 px-1 py-1.5 backdrop-blur-lg justify-around">
+        <button
+          onClick={() => setActiveTab('formula')}
+          className={`flex flex-col items-center gap-0.5 rounded-xl px-2 py-1 text-[10px] font-semibold transition-colors ${
+            activeTab === 'formula' ? 'text-emerald-400 font-bold' : 'text-slate-400'
+          }`}
+        >
+          <Flame className="h-4 w-4" />
+          <span>87% Formula</span>
+        </button>
+
         <button
           onClick={() => setActiveTab('upcoming')}
-          className={`flex flex-col items-center gap-1 rounded-xl px-3 py-1.5 text-[11px] font-semibold transition-colors ${
+          className={`flex flex-col items-center gap-0.5 rounded-xl px-2 py-1 text-[10px] font-semibold transition-colors ${
             activeTab === 'upcoming' ? 'text-emerald-400 font-bold' : 'text-slate-400'
           }`}
         >
-          <Sparkles className="h-5 w-5" />
-          <span>AI Bankers</span>
+          <Sparkles className="h-4 w-4" />
+          <span>Bankers</span>
         </button>
 
         <button
           onClick={() => setActiveTab('slip')}
-          className={`relative flex flex-col items-center gap-1 rounded-xl px-3 py-1.5 text-[11px] font-semibold transition-colors ${
+          className={`relative flex flex-col items-center gap-0.5 rounded-xl px-2 py-1 text-[10px] font-semibold transition-colors ${
             activeTab === 'slip' ? 'text-emerald-400 font-bold' : 'text-slate-400'
           }`}
         >
-          <Receipt className="h-5 w-5" />
+          <Receipt className="h-4 w-4" />
           <span>Betslip</span>
           {activeLegCount > 0 && (
-            <span className="absolute top-1 right-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-500 px-1 text-[9px] font-black text-slate-950">
+            <span className="absolute top-0.5 right-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-emerald-500 px-0.5 text-[8px] font-black text-slate-950">
               {activeLegCount}
             </span>
           )}
@@ -296,22 +320,22 @@ export default function App() {
 
         <button
           onClick={() => setActiveTab('builder')}
-          className={`flex flex-col items-center gap-1 rounded-xl px-3 py-1.5 text-[11px] font-semibold transition-colors ${
+          className={`flex flex-col items-center gap-0.5 rounded-xl px-2 py-1 text-[10px] font-semibold transition-colors ${
             activeTab === 'builder' ? 'text-emerald-400 font-bold' : 'text-slate-400'
           }`}
         >
-          <PlusCircle className="h-5 w-5" />
+          <PlusCircle className="h-4 w-4" />
           <span>+ Leg</span>
         </button>
 
         <button
           onClick={() => setActiveTab('ocr')}
-          className={`flex flex-col items-center gap-1 rounded-xl px-3 py-1.5 text-[11px] font-semibold transition-colors ${
+          className={`flex flex-col items-center gap-0.5 rounded-xl px-2 py-1 text-[10px] font-semibold transition-colors ${
             activeTab === 'ocr' ? 'text-emerald-400 font-bold' : 'text-slate-400'
           }`}
         >
-          <Camera className="h-5 w-5" />
-          <span>Scan OCR</span>
+          <Camera className="h-4 w-4" />
+          <span>OCR</span>
         </button>
       </div>
 

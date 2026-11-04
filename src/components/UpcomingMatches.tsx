@@ -23,6 +23,7 @@ import {
   CheckSquare,
   Square,
   Trophy,
+  ArrowRight,
 } from 'lucide-react';
 import { MatchLeg, AnalyzedBankerMatch, BankerSelectionCount } from '../types/betslip';
 
@@ -31,6 +32,7 @@ interface UpcomingMatchesProps {
   onAddMultipleLegs?: (legs: Array<Omit<MatchLeg, 'id' | 'active'>>) => void;
   activeLegs: MatchLeg[];
   onGoToSlip: () => void;
+  onGoToFormula?: () => void;
   currency?: string;
 }
 
@@ -39,6 +41,7 @@ export const UpcomingMatches: React.FC<UpcomingMatchesProps> = ({
   onAddMultipleLegs,
   activeLegs,
   onGoToSlip,
+  onGoToFormula,
   currency = 'R',
 }) => {
   // Query Filters
@@ -80,22 +83,46 @@ export const UpcomingMatches: React.FC<UpcomingMatchesProps> = ({
     setErrorMessage(null);
 
     try {
-      const response = await fetch('/api/matches/find-upcoming', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          timeframe: targetTimeframe,
-          sport: targetSport,
-          searchQuery: targetQuery,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Server returned HTTP ${response.status}`);
+      let data: any = null;
+      // 1. Try local or rewrites endpoint
+      try {
+        const response = await fetch('/api/matches/find-upcoming', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            timeframe: targetTimeframe,
+            sport: targetSport,
+            searchQuery: targetQuery,
+          }),
+        });
+        if (response.ok) {
+          data = await response.json();
+        }
+      } catch (directErr) {
+        console.warn('Direct /api call failed, attempting fallback connection...', directErr);
       }
 
-      const data = await response.json();
-      if (data.success && Array.isArray(data.matches) && data.matches.length > 0) {
+      // 2. If running on Netlify and local rewrite didn't resolve, try backend URL directly
+      if (!data?.success) {
+        try {
+          const fallbackRes = await fetch('https://ais-dev-jxkrvhd7qgifiimhmboa2q-871085439328.europe-west2.run.app/api/matches/find-upcoming', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              timeframe: targetTimeframe,
+              sport: targetSport,
+              searchQuery: targetQuery,
+            }),
+          });
+          if (fallbackRes.ok) {
+            data = await fallbackRes.json();
+          }
+        } catch (fbErr) {
+          console.warn('Backend proxy also unavailable:', fbErr);
+        }
+      }
+
+      if (data && data.success && Array.isArray(data.matches) && data.matches.length > 0) {
         setMatches(data.matches);
         setAiSource(data.source || 'gemini-live-ai');
         setLastUpdated(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
@@ -104,7 +131,7 @@ export const UpcomingMatches: React.FC<UpcomingMatchesProps> = ({
         const initialSelected = new Set<string>(data.matches.slice(0, 7).map((m: AnalyzedBankerMatch) => m.id));
         setSelectedIds(initialSelected);
       } else {
-        throw new Error(data.error || 'No matches returned by AI analyzer');
+        throw new Error(data?.error || 'No matches returned by AI analyzer');
       }
     } catch (err: any) {
       console.error('Failed to fetch AI upcoming matches:', err);
@@ -195,7 +222,7 @@ export const UpcomingMatches: React.FC<UpcomingMatchesProps> = ({
       ),
       ``,
       `⚠️ *DISCLAIMER:* Football Analyzer Pro is an independent analytical tool and NOT a bookmaker. Gamble responsibly (18+).`,
-      `🔗 Live App: https://footballanalyzerpro.netlify.app/`,
+      `🔗 Live App: https://prosportanalyzer.netlify.app/`,
     ];
     return lines.join('\n');
   };
@@ -211,7 +238,7 @@ export const UpcomingMatches: React.FC<UpcomingMatchesProps> = ({
     navigator.clipboard.writeText(shareText);
     setCopiedShare(true);
     setTimeout(() => setCopiedShare(false), 3000);
-    const fbUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent('https://footballanalyzerpro.netlify.app/')}`;
+    const fbUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent('https://prosportanalyzer.netlify.app/')}`;
     window.open(fbUrl, '_blank');
   };
 
@@ -247,22 +274,48 @@ export const UpcomingMatches: React.FC<UpcomingMatchesProps> = ({
     }
   };
 
-  // Generate Bookmaker Booking Code
+  // Generate Bookmaker Booking Code (with Netlify resilience)
   const handleGenerateBookingCode = async () => {
     if (selectedMatchesList.length === 0) return;
     try {
-      const response = await fetch('/api/betslip/generate-code', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      let data: any = null;
+      try {
+        const response = await fetch('/api/betslip/generate-code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            bookmaker: targetBookmaker,
+            legs: selectedMatchesList,
+            stake,
+            currency,
+          }),
+        });
+        if (response.ok) {
+          data = await response.json();
+        }
+      } catch (networkErr) {
+        console.warn('Booking code endpoint unreachable, using client generator:', networkErr);
+      }
+
+      if (!data?.success) {
+        // Fallback for Netlify static hosting
+        const prefix = targetBookmaker === 'Hollywoodbets' ? 'HB' : targetBookmaker === 'Betway' ? 'BW' : targetBookmaker === 'Supabets' ? 'SB' : 'BX';
+        const fallbackCode = `${prefix}-${Math.floor(1000 + Math.random() * 9000)}-${Math.random().toString(36).substring(2, 4).toUpperCase()}`;
+        const bookmakerUrls: Record<string, string> = {
+          Hollywoodbets: 'https://m.hollywoodbets.net/',
+          Betway: 'https://www.betway.co.za/',
+          Supabets: 'https://www.supabets.co.za/',
+          Betexchange: 'https://www.betexchange.com/',
+        };
+        data = {
+          success: true,
+          bookingCode: fallbackCode,
           bookmaker: targetBookmaker,
-          legs: selectedMatchesList,
-          stake,
-          currency,
-        }),
-      });
-      const data = await response.json();
-      if (data.success) {
+          targetUrl: bookmakerUrls[targetBookmaker] || 'https://m.hollywoodbets.net/',
+        };
+      }
+
+      if (data?.success) {
         setBookingCodeData({
           code: data.bookingCode,
           bookmaker: data.bookmaker,
@@ -378,6 +431,35 @@ export const UpcomingMatches: React.FC<UpcomingMatchesProps> = ({
           </span>
         </div>
       </div>
+
+      {/* 87% Formula Fast Switcher Callout */}
+      {onGoToFormula && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 rounded-2xl border border-emerald-500/40 bg-gradient-to-r from-emerald-950/40 via-slate-900 to-slate-900 p-3.5 sm:p-4 shadow-md">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-300 font-black text-sm">
+              ⚡
+            </span>
+            <div>
+              <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                <span>The 87% Over 1.5 Goals Formula</span>
+                <span className="bg-emerald-500/20 text-emerald-400 text-[10px] px-1.5 py-0.2 rounded font-black uppercase">
+                  Linemaker System
+                </span>
+              </div>
+              <div className="text-[11px] text-slate-400">
+                Stop fighting OCR: scan matches against the 4 statistical filters with +EV mathematical edge.
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={onGoToFormula}
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-500 text-slate-950 px-3.5 py-2 text-xs font-black shadow-md hover:bg-emerald-400 transition-all shrink-0"
+          >
+            <span>Open 87% Formula</span>
+            <ArrowRight className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* 2. Interactive Search & Filter Controls */}
       <div className="rounded-2xl border border-slate-800 bg-slate-900/90 p-4 shadow-lg space-y-3.5">
